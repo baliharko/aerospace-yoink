@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+.claude/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+yoink.sh
