@@ -9,7 +9,6 @@ A fast, native macOS window picker for [AeroSpace](https://github.com/nikitabobk
 
 Press a keybinding and a floating Liquid Glass panel appears, listing every window from your other AeroSpace workspaces. Select one and it gets moved or "**yoinked**" into your focused workspace.
 
-- Spotlight-like appearance using native `NSGlassEffectView` (Liquid Glass)
 - Runs as a background daemon — instant response on hotkey press
 - Type-to-filter search that dynamically resizes the panel
 - Keyboard-driven: arrow keys to navigate, Enter to yoink, Escape to dismiss
