@@ -196,7 +196,9 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         }
     }
 
-    func hide(then completion: (@MainActor () -> Void)? = nil) {
+    func hide(restoreFocus: Bool = true, then completion: (@MainActor () -> Void)? = nil) {
+        let appToRestore = restoreFocus ? previousApp : nil
+        previousApp = nil
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = Layout.Animation.fadeOut
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -204,6 +206,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         }, completionHandler: { [weak self] in
             MainActor.assumeIsolated {
                 self?.panel.orderOut(nil)
+                appToRestore?.activate()
                 completion?()
             }
         })
@@ -257,17 +260,12 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         stack.push(windowId: win.id, originWorkspace: win.workspace, destinationWorkspace: ws)
         stack.save(pid: pid)
         startPollTimerIfNeeded()
-        let appToRestore = previousApp
-        hide {
+        hide(restoreFocus: !focus) {
             // Run aerospace commands off the main thread (they shell out synchronously)
             DispatchQueue.global().async {
                 Aerospace.yoink(win.id, to: ws, focus: focus)
                 if !focus, let restoreId {
                     Aerospace.run(["focus", "--window-id", "\(restoreId)"])
-                }
-                // Reactivate the previously focused macOS app so it receives keyboard input
-                if !focus, let app = appToRestore {
-                    DispatchQueue.main.async { app.activate() }
                 }
             }
         }
