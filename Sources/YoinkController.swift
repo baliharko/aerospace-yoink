@@ -272,7 +272,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     }
 
     /// Pop the most recently yoinked window and send it back to its origin.
-    func unyoink() {
+    func yeet() {
         guard let entry = stack.pop() else { return }
         Aerospace.yoink(entry.windowId, to: entry.originWorkspace, focus: false)
         stack.save(pid: pid)

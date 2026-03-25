@@ -4,12 +4,12 @@ let socketPath = "/tmp/yoink.sock"
 
 enum YoinkCommand: Equatable {
     case yoink(focus: Bool)
-    case unyoink
+    case yeet
 
     var rawValue: String {
         switch self {
         case .yoink(let focus): focus ? "yoink --focus" : "yoink"
-        case .unyoink: "unyoink"
+        case .yeet: "yeet"
         }
     }
 
@@ -18,7 +18,7 @@ enum YoinkCommand: Equatable {
         switch trimmed {
         case "yoink": return .yoink(focus: false)
         case "yoink --focus": return .yoink(focus: true)
-        case "unyoink": return .unyoink
+        case "yeet": return .yeet
         default: return nil
         }
     }
