@@ -32,14 +32,15 @@ enum Aerospace {
         FileManager.default.fileExists(atPath: bin)
     }
 
-    /// Fetch workspace + windows in parallel for speed
-    static func fetchWindows() -> (workspace: String, windows: [AeroWindow]) {
+    /// Fetch workspace + windows + focused window in parallel for speed
+    static func fetchWindows() -> (workspace: String, windows: [AeroWindow], focusedId: Int?) {
         guard isInstalled else {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
-            return ("", [])
+            return ("", [], nil)
         }
         let ws = MutableBox("")
         let raw = MutableBox("")
+        let focused = MutableBox<Int?>(nil)
         let group = DispatchGroup()
 
         group.enter()
@@ -51,6 +52,11 @@ enum Aerospace {
         DispatchQueue.global().async {
             raw.value = run(["list-windows", "--all", "--format",
                        "%{window-id}|%{workspace}|%{app-name}|%{window-title}"])
+            group.leave()
+        }
+        group.enter()
+        DispatchQueue.global().async {
+            focused.value = focusedWindowId()
             group.leave()
         }
         group.wait()
@@ -69,7 +75,7 @@ enum Aerospace {
         let defaultIcon = NSWorkspace.shared.icon(for: .applicationBundle)
         defaultIcon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
 
-        guard !rawOutput.isEmpty else { return (workspace, []) }
+        guard !rawOutput.isEmpty else { return (workspace, [], focused.value) }
 
         let windows: [AeroWindow] = rawOutput.split(separator: "\n").compactMap { line in
             let p = line.split(separator: "|", maxSplits: 3).map(String.init)
@@ -86,7 +92,7 @@ enum Aerospace {
                 icon: iconCache[appName] ?? defaultIcon
             )
         }
-        return (workspace, windows)
+        return (workspace, windows, focused.value)
     }
 
     static func yoink(_ windowId: Int, to workspace: String, focus: Bool = true) {
@@ -94,6 +100,12 @@ enum Aerospace {
         if focus {
             run(["focus", "--window-id", "\(windowId)"])
         }
+    }
+
+    /// Returns the currently focused window ID, or nil if none.
+    static func focusedWindowId() -> Int? {
+        let raw = run(["list-windows", "--focused", "--format", "%{window-id}"])
+        return Int(raw.trimmingCharacters(in: .whitespaces))
     }
 
     /// Lightweight query returning window IDs and their current workspaces.

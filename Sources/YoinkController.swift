@@ -23,6 +23,9 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private let stack: YoinkStack
     private let pid: pid_t
     private var pollTimer: DispatchSourceTimer?
+    private var focusAfterYoink = false
+    private var previouslyFocusedWindowId: Int?
+    private var previousApp: NSRunningApplication?
 
     init(stack: YoinkStack, pid: pid_t) {
         self.stack = stack
@@ -152,21 +155,23 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     // MARK: - Panel Lifecycle
 
     /// Toggle panel — show if hidden, hide if visible
-    func activate() {
+    func activate(focus: Bool = false) {
         if panel.isVisible {
             hide()
             return
         }
+        focusAfterYoink = focus
         searchField.stringValue = ""
         searchField.isHidden = true
         scrollTopVisible.isActive = false
         scrollTopHidden.isActive = true
 
         Task.detached { [weak self] in
-            let (ws, wins) = Aerospace.fetchWindows()
+            let (ws, wins, focusedId) = Aerospace.fetchWindows()
             await MainActor.run { [weak self] in
                 guard let self, !wins.isEmpty else { return }
 
+                previouslyFocusedWindowId = focusedId
                 workspace = ws
                 allWindows = wins
                 filtered = wins
@@ -178,6 +183,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
                 recalculateMaxTableHeight()
                 resizePanelForRows()
 
+                previousApp = NSWorkspace.shared.frontmostApplication
                 panel.alphaValue = 0
                 NSApp.activate(ignoringOtherApps: true)
                 panel.makeKeyAndOrderFront(nil)
@@ -190,13 +196,16 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         }
     }
 
-    func hide() {
+    func hide(then completion: (@MainActor () -> Void)? = nil) {
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = Layout.Animation.fadeOut
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated { self?.panel.orderOut(nil) }
+            MainActor.assumeIsolated {
+                self?.panel.orderOut(nil)
+                completion?()
+            }
         })
     }
 
@@ -242,11 +251,26 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private func yoinkSelected() {
         guard tableView.selectedRow >= 0, tableView.selectedRow < filtered.count else { return }
         let win = filtered[tableView.selectedRow]
-        hide()
-        Aerospace.yoink(win.id, to: workspace)
-        stack.push(windowId: win.id, originWorkspace: win.workspace, destinationWorkspace: workspace)
+        let restoreId = previouslyFocusedWindowId
+        let focus = focusAfterYoink
+        let ws = workspace
+        stack.push(windowId: win.id, originWorkspace: win.workspace, destinationWorkspace: ws)
         stack.save(pid: pid)
         startPollTimerIfNeeded()
+        let appToRestore = previousApp
+        hide {
+            // Run aerospace commands off the main thread (they shell out synchronously)
+            DispatchQueue.global().async {
+                Aerospace.yoink(win.id, to: ws, focus: focus)
+                if !focus, let restoreId {
+                    Aerospace.run(["focus", "--window-id", "\(restoreId)"])
+                }
+                // Reactivate the previously focused macOS app so it receives keyboard input
+                if !focus, let app = appToRestore {
+                    DispatchQueue.main.async { app.activate() }
+                }
+            }
+        }
     }
 
     /// Pop the most recently yoinked window and send it back to its origin.

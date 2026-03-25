@@ -2,8 +2,9 @@ import AppKit
 
 let pidFile = "/tmp/yoink.pid"
 let isUnyoink = CommandLine.arguments.contains("--unyoink")
+let wantsFocus = CommandLine.arguments.contains("--focus")
 
-// If an existing daemon is running, signal it and exit
+// If an existing daemon is running, send command via socket and exit
 if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     .components(separatedBy: "\n").first?
     .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -22,8 +23,12 @@ if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     let comm = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if comm.hasSuffix("yoink") {
-        kill(pid, isUnyoink ? SIGUSR2 : SIGUSR1)
-        exit(0)
+        let command: YoinkCommand = isUnyoink ? .unyoink : .yoink(focus: wantsFocus)
+        if sendCommand(command) {
+            exit(0)
+        }
+        fputs("yoink: failed to connect to daemon\n", stderr)
+        exit(1)
     }
     // Stale PID file — fall through to become the new daemon
 }
@@ -39,29 +44,32 @@ let stack = YoinkStack()
 let currentPid = getpid()
 try? "\(currentPid)".write(toFile: pidFile, atomically: true, encoding: .utf8)
 
-// Clean up PID file on exit
-atexit { unlink(pidFile) }
+// Clean up PID file and socket on exit
+atexit {
+    unlink(pidFile)
+    unlink(socketPath)
+}
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
 let controller = YoinkController(stack: stack, pid: currentPid)
 
-// Listen for SIGUSR1 to show panel on subsequent hotkey presses
-signal(SIGUSR1, SIG_IGN)
-let signalSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-signalSource.setEventHandler { controller.activate() }
-signalSource.resume()
-
-// Listen for SIGUSR2 to unyoink (pop stack, send window back to origin)
-signal(SIGUSR2, SIG_IGN)
-let unyoinkSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-unyoinkSource.setEventHandler { controller.unyoink() }
-unyoinkSource.resume()
+// Listen for commands on Unix domain socket
+startSocketListener { command in
+    MainActor.assumeIsolated {
+        switch command {
+        case .yoink(let focus):
+            controller.activate(focus: focus)
+        case .unyoink:
+            controller.unyoink()
+        }
+    }
+}
 
 // Show immediately on first launch unless started as background daemon
 if !CommandLine.arguments.contains("--daemon") && !isUnyoink {
-    DispatchQueue.main.async { controller.activate() }
+    DispatchQueue.main.async { controller.activate(focus: wantsFocus) }
 }
 
 app.run()
