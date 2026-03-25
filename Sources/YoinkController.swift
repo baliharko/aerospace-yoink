@@ -214,9 +214,11 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let w = YoinkController.panelWidth(for: screen)
         let h = neededTableHeight + chrome
+        let maxH = maxTableHeight + searchChrome
+        let topY = screen.frame.midY + maxH / 2 + screen.frame.height * Layout.Panel.verticalOffsetRatio
         let frame = NSRect(
             x: screen.frame.midX - w / 2,
-            y: screen.frame.midY - h / 2 + screen.frame.height * Layout.Panel.verticalOffsetRatio,
+            y: topY - h,
             width: w,
             height: h
         )

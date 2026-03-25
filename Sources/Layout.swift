@@ -6,7 +6,7 @@ enum Layout {
         static let screenWidthRatio: CGFloat = 0.45
         static let screenHeightRatio: CGFloat = 0.45
         static let maxTableHeight: CGFloat = 500
-        static let verticalOffsetRatio: CGFloat = 0.08
+        static let verticalOffsetRatio: CGFloat = 0
         static let cornerRadius: CGFloat = 44
         static let cornerRadiusClip: CGFloat = cornerRadius + 2
     }
