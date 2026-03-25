@@ -72,7 +72,7 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 | Flag | Effect |
 |---|---|
 | `--daemon` | Start as a background daemon without showing the picker |
-| `--focus` | Focus the yoinked window after moving it (default: keep focus on the original window) |
+| `--no-focus` | Move the window without focusing it (default: focus the yoinked window) |
 | `--unyoink` | Send the most recently yoinked window back to its origin workspace |
 
 ### How it works

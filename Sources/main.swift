@@ -2,7 +2,7 @@ import AppKit
 
 let pidFile = "/tmp/yoink.pid"
 let isUnyoink = CommandLine.arguments.contains("--unyoink")
-let wantsFocus = CommandLine.arguments.contains("--focus")
+let wantsFocus = !CommandLine.arguments.contains("--no-focus")
 
 // If an existing daemon is running, send command via socket and exit
 if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)

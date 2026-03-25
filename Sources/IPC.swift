@@ -8,7 +8,7 @@ enum YoinkCommand: Equatable {
 
     var rawValue: String {
         switch self {
-        case .yoink(let focus): focus ? "yoink --focus" : "yoink"
+        case .yoink(let focus): focus ? "yoink" : "yoink --no-focus"
         case .unyoink: "unyoink"
         }
     }
@@ -16,8 +16,8 @@ enum YoinkCommand: Equatable {
     static func parse(_ string: String) -> YoinkCommand? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         switch trimmed {
-        case "yoink": return .yoink(focus: false)
-        case "yoink --focus": return .yoink(focus: true)
+        case "yoink": return .yoink(focus: true)
+        case "yoink --no-focus": return .yoink(focus: false)
         case "unyoink": return .unyoink
         default: return nil
         }
