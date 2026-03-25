@@ -1,4 +1,4 @@
-import Foundation
+import CoreGraphics
 
 enum Layout {
     enum Panel {
@@ -56,6 +56,11 @@ enum Layout {
         static let badge: CGFloat = 12
         static let appName: CGFloat = 14
         static let title: CGFloat = 12
+    }
+
+    enum Animation {
+        static let fadeIn: CGFloat = 0.1
+        static let fadeOut: CGFloat = 0.08
     }
 }
 

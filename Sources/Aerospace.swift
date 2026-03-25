@@ -95,6 +95,8 @@ enum Aerospace {
     }
 }
 
+// MARK: - Utilities
+
 /// Thread-safe mutable wrapper for use across dispatch queues
 final class MutableBox<T>: @unchecked Sendable {
     var value: T
