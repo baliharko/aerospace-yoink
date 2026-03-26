@@ -67,13 +67,34 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 | Escape | Clear search, or dismiss if search is empty |
 | Any letter | Opens the filter field and starts filtering |
 
+### Flags
+
+| Flag | Effect |
+|---|---|
+| `--daemon` | Start as a background daemon without showing the picker |
+| `--no-focus` | Move the window without focusing it (default: focus the yoinked window) |
+| `--yeet` | Send the most recently yoinked window back to its origin workspace |
+
 ### How it works
 
-1. **First invocation with `--daemon`**: Starts a background process that stays resident. No UI is shown.
-2. **Subsequent invocations** (without `--daemon`): Detects the running daemon via a PID file at `/tmp/yoink.pid`, sends it a `SIGUSR1` signal, and exits immediately. The daemon receives the signal and shows the picker panel.
+1. **First invocation with `--daemon`**: Starts a background process that stays resident and listens on a Unix domain socket at `/tmp/yoink.sock`. No UI is shown.
+2. **Subsequent invocations** (without `--daemon`): Detects the running daemon via a PID file at `/tmp/yoink.pid`, sends a command over the socket, and exits immediately. The daemon receives the command and shows the picker panel.
 3. **Without a daemon**: If no daemon is running, the binary becomes the daemon and shows the panel immediately.
 
 This means the hotkey response is near-instant — there's no process startup overhead on each press.
+
+## Yeeting
+
+Yoink keeps a stack of where each yoinked window came from. Running `yoink --yeet` pops the most recent entry and sends that window back to its original workspace — handy when you pulled something over by mistake or are done with it.
+
+You can bind it to a hotkey alongside the regular yoink trigger:
+
+```toml
+[mode.main.binding]
+    alt-shift-ctrl-cmd-u = 'exec-and-forget /path/to/yoink --yeet'
+```
+
+The stack is automatically cleaned up: if you manually move a yoinked window to a different workspace, it gets removed from the stack so yeet won't try to move it again.
 
 ## How AeroSpace discovers the binary
 
@@ -88,11 +109,13 @@ If your `aerospace` binary is elsewhere, you'll need to symlink it to one of the
 
 ```
 Sources/
-  main.swift            # Daemon entry point, PID file, signal handling
+  main.swift            # Daemon entry point, PID file, socket IPC
+  IPC.swift             # Unix domain socket client/server
   Aerospace.swift       # AeroSpace CLI wrapper, window fetching
   AeroWindow.swift      # Window data model
   Views.swift           # Panel, cell, and row view classes
   YoinkController.swift # UI controller, search, keyboard handling
+  YoinkStack.swift      # Tracks yoinked window origins for yeet
 Package.swift           # Swift Package Manager manifest
 ```
 
