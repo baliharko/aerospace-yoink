@@ -6,3 +6,5 @@
 xcuserdata/
 DerivedData/
 yoink.sh
+.vscode
+.DS_Store
