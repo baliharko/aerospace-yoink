@@ -5,6 +5,8 @@ let package = Package(
     name: "yoink",
     platforms: [.macOS(.v26)],
     targets: [
-        .executableTarget(name: "yoink", path: "Sources")
+        .target(name: "YoinkLib", path: "Sources/YoinkLib"),
+        .executableTarget(name: "yoink", dependencies: ["YoinkLib"], path: "Sources/YoinkApp"),
+        .testTarget(name: "YoinkTests", dependencies: ["YoinkLib"], path: "Tests"),
     ]
 )

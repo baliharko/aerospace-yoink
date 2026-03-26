@@ -38,31 +38,31 @@ enum Aerospace {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
             return ("", [], nil)
         }
-        let ws = MutableBox("")
-        let raw = MutableBox("")
-        let focused = MutableBox<Int?>(nil)
+        // nonisolated(unsafe) is safe here: each var is written exactly once
+        // on a background thread, and group.wait() provides a happens-before
+        // barrier before any reads on the calling thread.
+        nonisolated(unsafe) var workspace = ""
+        nonisolated(unsafe) var rawOutput = ""
+        nonisolated(unsafe) var focusedId: Int? = nil
         let group = DispatchGroup()
 
         group.enter()
         DispatchQueue.global().async {
-            ws.value = run(["list-workspaces", "--focused"])
+            workspace = run(["list-workspaces", "--focused"])
             group.leave()
         }
         group.enter()
         DispatchQueue.global().async {
-            raw.value = run(["list-windows", "--all", "--format",
+            rawOutput = run(["list-windows", "--all", "--format",
                        "%{window-id}|%{workspace}|%{app-name}|%{window-title}"])
             group.leave()
         }
         group.enter()
         DispatchQueue.global().async {
-            focused.value = focusedWindowId()
+            focusedId = focusedWindowId()
             group.leave()
         }
         group.wait()
-
-        let workspace = ws.value
-        let rawOutput = raw.value
 
         let iconCache = Dictionary(
             NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
@@ -75,7 +75,7 @@ enum Aerospace {
         let defaultIcon = NSWorkspace.shared.icon(for: .applicationBundle)
         defaultIcon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
 
-        guard !rawOutput.isEmpty else { return (workspace, [], focused.value) }
+        guard !rawOutput.isEmpty else { return (workspace, [], focusedId) }
 
         let windows: [AeroWindow] = rawOutput.split(separator: "\n").compactMap { line in
             let p = line.split(separator: "|", maxSplits: 3).map(String.init)
@@ -92,7 +92,7 @@ enum Aerospace {
                 icon: iconCache[appName] ?? defaultIcon
             )
         }
-        return (workspace, windows, focused.value)
+        return (workspace, windows, focusedId)
     }
 
     static func yoink(_ windowId: Int, to workspace: String, focus: Bool = true) {
@@ -122,10 +122,3 @@ enum Aerospace {
     }
 }
 
-// MARK: - Utilities
-
-/// Thread-safe mutable wrapper for use across dispatch queues
-final class MutableBox<T>: @unchecked Sendable {
-    var value: T
-    init(_ value: T) { self.value = value }
-}
