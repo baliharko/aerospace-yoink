@@ -1,4 +1,4 @@
-name: Build & Test
+name: Build
 
 on:
   pull_request:
@@ -13,4 +13,5 @@ jobs:
         with:
           xcode-version: '^26'
       - run: swift build
-      - run: swift test
+      # swift test requires macOS 26 at runtime (NSGlassEffectView);
+      # GitHub Actions does not yet offer a macOS 26 runner.
