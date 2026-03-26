@@ -41,15 +41,29 @@ cp .build/release/yoink /usr/local/bin/yoink
 
 ## Configuration
 
+### Yoink config
+
+Create `~/.yoink.toml` (or `$XDG_CONFIG_HOME/yoink/yoink.toml`) to customize behavior:
+
+```toml
+fade-in = 0.1          # Panel fade-in duration in seconds (default: 0.1)
+fade-out = 0.08        # Panel fade-out duration in seconds (default: 0.08)
+focus-after-yoink = true  # Focus the yoinked window (default: true)
+```
+
+All fields are optional — defaults are used for any missing keys.
+
+### AeroSpace integration
+
 Add these lines to your AeroSpace config (`~/.config/aerospace/aerospace.toml`):
 
-### Start the daemon on AeroSpace startup
+#### Start the daemon on AeroSpace startup
 
 ```toml
 after-startup-command = ['exec-and-forget /path/to/yoink --daemon']
 ```
 
-### Bind a hotkey to trigger the picker
+#### Bind a hotkey to trigger the picker
 
 ```toml
 [mode.main.binding]
@@ -77,9 +91,11 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 
 ### How it works
 
-1. **First invocation with `--daemon`**: Starts a background process that stays resident and listens on a Unix domain socket at `/tmp/yoink.sock`. No UI is shown.
-2. **Subsequent invocations** (without `--daemon`): Detects the running daemon via a PID file at `/tmp/yoink.pid`, sends a command over the socket, and exits immediately. The daemon receives the command and shows the picker panel.
+1. **First invocation with `--daemon`**: Starts a background process that stays resident and listens on a Unix domain socket. No UI is shown.
+2. **Subsequent invocations** (without `--daemon`): Detects the running daemon via a PID file, forwards CLI args over the socket, and exits immediately. The daemon receives the args and acts on them (e.g. shows the picker).
 3. **Without a daemon**: If no daemon is running, the binary becomes the daemon and shows the panel immediately.
+
+Runtime files (PID file, socket) are stored in a user-scoped directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`) with `0700` permissions.
 
 This means the hotkey response is near-instant — there's no process startup overhead on each press.
 
@@ -109,14 +125,25 @@ If your `aerospace` binary is elsewhere, you'll need to symlink it to one of the
 
 ```
 Sources/
-  main.swift            # Daemon entry point, PID file, socket IPC
-  IPC.swift             # Unix domain socket client/server
-  Aerospace.swift       # AeroSpace CLI wrapper, window fetching
-  AeroWindow.swift      # Window data model
-  Views.swift           # Panel, cell, and row view classes
-  YoinkController.swift # UI controller, search, keyboard handling
-  YoinkStack.swift      # Tracks yoinked window origins for yeet
-Package.swift           # Swift Package Manager manifest
+  YoinkApp/
+    main.swift            # Daemon entry point, PID file, socket IPC
+  YoinkLib/
+    Aerospace.swift       # AeroSpace CLI wrapper, window fetching
+    AeroWindow.swift      # Window data model
+    CLIArgs.swift         # Command-line argument parsing
+    Config.swift          # TOML config parser
+    IPC.swift             # Unix domain socket client/server
+    Layout.swift          # UI layout constants
+    RuntimePaths.swift    # User-scoped runtime directory paths
+    Views.swift           # Panel, cell, and row view classes
+    YoinkController.swift # UI controller, search, keyboard handling
+    YoinkStack.swift      # Tracks yoinked window origins for yeet
+Tests/
+  CLIArgsTests.swift      # CLI argument parsing tests
+  ConfigTests.swift       # Config/TOML parser tests
+  DaemonStartupTests.swift # Daemon startup sequence tests
+  IPCTests.swift          # IPC round-trip tests
+Package.swift
 ```
 
 ## License
