@@ -1,4 +1,4 @@
-name: Build
+name: Build & Test
 
 on:
   pull_request:
@@ -13,3 +13,4 @@ jobs:
         with:
           xcode-version: '^26'
       - run: swift build
+      - run: swift test
