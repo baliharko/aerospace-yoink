@@ -73,7 +73,7 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 |---|---|
 | `--daemon` | Start as a background daemon without showing the picker |
 | `--no-focus` | Move the window without focusing it (default: focus the yoinked window) |
-| `--unyoink` | Send the most recently yoinked window back to its origin workspace |
+| `--yeet` | Send the most recently yoinked window back to its origin workspace |
 
 ### How it works
 
@@ -83,18 +83,18 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 
 This means the hotkey response is near-instant — there's no process startup overhead on each press.
 
-## Unyoinking
+## Yeeting
 
-Yoink keeps a stack of where each yoinked window came from. Running `yoink --unyoink` pops the most recent entry and sends that window back to its original workspace — handy when you pulled something over by mistake or are done with it.
+Yoink keeps a stack of where each yoinked window came from. Running `yoink --yeet` pops the most recent entry and sends that window back to its original workspace — handy when you pulled something over by mistake or are done with it.
 
 You can bind it to a hotkey alongside the regular yoink trigger:
 
 ```toml
 [mode.main.binding]
-    alt-shift-ctrl-cmd-u = 'exec-and-forget /path/to/yoink --unyoink'
+    alt-shift-ctrl-cmd-u = 'exec-and-forget /path/to/yoink --yeet'
 ```
 
-The stack is automatically cleaned up: if you manually move a yoinked window to a different workspace, it gets removed from the stack so unyoink won't try to move it again.
+The stack is automatically cleaned up: if you manually move a yoinked window to a different workspace, it gets removed from the stack so yeet won't try to move it again.
 
 ## How AeroSpace discovers the binary
 
@@ -115,10 +115,11 @@ Sources/
   AeroWindow.swift      # Window data model
   Views.swift           # Panel, cell, and row view classes
   YoinkController.swift # UI controller, search, keyboard handling
-  YoinkStack.swift      # Tracks yoinked window origins for unyoink
+  YoinkStack.swift      # Tracks yoinked window origins for yeet
 Package.swift           # Swift Package Manager manifest
 ```
 
 ## License
 
 MIT
+

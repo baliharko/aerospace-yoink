@@ -1,7 +1,7 @@
 import AppKit
 
 let pidFile = "/tmp/yoink.pid"
-let isUnyoink = CommandLine.arguments.contains("--unyoink")
+let isYeet = CommandLine.arguments.contains("--yeet")
 let wantsFocus = !CommandLine.arguments.contains("--no-focus")
 
 // If an existing daemon is running, send command via socket and exit
@@ -23,7 +23,7 @@ if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     let comm = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     if comm.hasSuffix("yoink") {
-        let command: YoinkCommand = isUnyoink ? .unyoink : .yoink(focus: wantsFocus)
+        let command: YoinkCommand = isYeet ? .yeet : .yoink(focus: wantsFocus)
         if sendCommand(command) {
             exit(0)
         }
@@ -33,8 +33,8 @@ if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     // Stale PID file — fall through to become the new daemon
 }
 
-// --unyoink with no running daemon is a no-op
-if isUnyoink {
+// --yeet with no running daemon is a no-op
+if isYeet {
     fputs("yoink: no daemon running\n", stderr)
     exit(1)
 }
@@ -61,14 +61,14 @@ startSocketListener { command in
         switch command {
         case .yoink(let focus):
             controller.activate(focus: focus)
-        case .unyoink:
-            controller.unyoink()
+        case .yeet:
+            controller.yeet()
         }
     }
 }
 
 // Show immediately on first launch unless started as background daemon
-if !CommandLine.arguments.contains("--daemon") && !isUnyoink {
+if !CommandLine.arguments.contains("--daemon") && !isYeet {
     DispatchQueue.main.async { controller.activate(focus: wantsFocus) }
 }
 
