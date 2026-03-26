@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
+public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     private let panel: YoinkPanel
     private let searchField: NSTextField
     private let tableView: NSTableView
@@ -20,6 +20,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private var keyMonitor: Any?
     private var resignObserver: Any?
 
+    private let config: Config
     private let stack: YoinkStack
     private let pid: pid_t
     private var pollTimer: DispatchSourceTimer?
@@ -27,7 +28,8 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
 
-    init(stack: YoinkStack, pid: pid_t) {
+    public init(config: Config, stack: YoinkStack, pid: pid_t) {
+        self.config = config
         self.stack = stack
         self.pid = pid
         panel = YoinkPanel(
@@ -155,7 +157,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     // MARK: - Panel Lifecycle
 
     /// Toggle panel — show if hidden, hide if visible
-    func activate(focus: Bool = false) {
+    public func activate(focus: Bool = false) {
         if panel.isVisible {
             hide()
             return
@@ -188,7 +190,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
                 NSApp.activate(ignoringOtherApps: true)
                 panel.makeKeyAndOrderFront(nil)
                 NSAnimationContext.runAnimationGroup { ctx in
-                    ctx.duration = Layout.Animation.fadeIn
+                    ctx.duration = self.config.fadeIn
                     ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
                     self.panel.animator().alphaValue = 1
                 }
@@ -196,11 +198,11 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         }
     }
 
-    func hide(restoreFocus: Bool = true, then completion: (@MainActor () -> Void)? = nil) {
+    public func hide(restoreFocus: Bool = true, then completion: (@MainActor () -> Void)? = nil) {
         let appToRestore = restoreFocus ? previousApp : nil
         previousApp = nil
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = Layout.Animation.fadeOut
+            ctx.duration = config.fadeOut
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
@@ -272,7 +274,7 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
     }
 
     /// Pop the most recently yoinked window and send it back to its origin.
-    func yeet() {
+    public func yeet() {
         guard let entry = stack.pop() else { return }
         Aerospace.yoink(entry.windowId, to: entry.originWorkspace, focus: false)
         stack.save(pid: pid)
@@ -400,11 +402,11 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
 
     // MARK: - NSTableViewDataSource
 
-    func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
+    public func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
 
     // MARK: - NSTableViewDelegate
 
-    func tableView(_ tv: NSTableView, viewFor col: NSTableColumn?, row: Int) -> NSView? {
+    public func tableView(_ tv: NSTableView, viewFor col: NSTableColumn?, row: Int) -> NSView? {
         let id = NSUserInterfaceItemIdentifier("cell")
         let cell = tv.makeView(withIdentifier: id, owner: nil) as? WindowCell ?? {
             let c = WindowCell(frame: .zero)
@@ -415,13 +417,13 @@ class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NST
         return cell
     }
 
-    func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    public func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         WindowRowView()
     }
 
     // MARK: - NSTextFieldDelegate
 
-    func controlTextDidChange(_ obj: Notification) {
+    public func controlTextDidChange(_ obj: Notification) {
         let q = searchField.stringValue
         if q.isEmpty {
             hideSearch()

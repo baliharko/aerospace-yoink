@@ -1,19 +1,21 @@
 import Foundation
 
-struct YoinkEntry {
-    let windowId: Int
-    let originWorkspace: String
-    var destinationWorkspace: String
+public struct YoinkEntry {
+    public let windowId: Int
+    public let originWorkspace: String
+    public var destinationWorkspace: String
 }
 
-class YoinkStack {
-    private(set) var entries: [YoinkEntry] = []
-    private let pidFilePath = "/tmp/yoink.pid"
+public class YoinkStack {
+    public private(set) var entries: [YoinkEntry] = []
+    private var pidFilePath: String { RuntimePaths.pidFile }
 
-    var isEmpty: Bool { entries.isEmpty }
+    public init() {}
+
+    public var isEmpty: Bool { entries.isEmpty }
 
     /// Push a yoinked window. If it already exists, preserve its origin and move to top.
-    func push(windowId: Int, originWorkspace: String, destinationWorkspace: String) {
+    public func push(windowId: Int, originWorkspace: String, destinationWorkspace: String) {
         if let idx = entries.firstIndex(where: { $0.windowId == windowId }) {
             var entry = entries.remove(at: idx)
             entry.destinationWorkspace = destinationWorkspace
@@ -28,18 +30,18 @@ class YoinkStack {
     }
 
     /// Pop the most recently yoinked window.
-    func pop() -> YoinkEntry? {
+    public func pop() -> YoinkEntry? {
         guard !entries.isEmpty else { return nil }
         return entries.removeFirst()
     }
 
     /// Remove a specific window (e.g. when manual move detected).
-    func remove(windowId: Int) {
+    public func remove(windowId: Int) {
         entries.removeAll { $0.windowId == windowId }
     }
 
     /// Persist PID and stack to the pid file.
-    func save(pid: pid_t) {
+    public func save(pid: pid_t) {
         var lines = ["\(pid)"]
         for entry in entries {
             lines.append("\(entry.windowId)|\(entry.originWorkspace)|\(entry.destinationWorkspace)")
@@ -50,7 +52,7 @@ class YoinkStack {
     }
 
     /// Load stack from pid file. Only restores entries if the stored PID matches.
-    func load(pid: pid_t) {
+    public func load(pid: pid_t) {
         guard let content = try? String(contentsOfFile: pidFilePath, encoding: .utf8) else { return }
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard let firstLine = lines.first,
