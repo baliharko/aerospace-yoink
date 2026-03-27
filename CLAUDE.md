@@ -14,18 +14,18 @@ Yoink is a native macOS daemon that provides a keyboard-driven window picker for
 swift build                    # Debug build
 swift build -c release         # Release build
 
-# Run as daemon (stays resident, listens for SIGUSR1)
+# Run as daemon (stays resident, listens on a Unix domain socket)
 swift build -c release && .build/release/yoink --daemon
 
-# Trigger picker (sends SIGUSR1 to running daemon)
+# Trigger picker (forwards args over socket to running daemon)
 .build/release/yoink
 ```
 
-No tests, linter, or formatter are configured.
+Run tests with `swift test`. Lint with `swiftlint lint` (config in `.swiftlint.yml`). No formatter is configured.
 
 ## Architecture
 
-**Daemon IPC pattern:** `main.swift` writes PID to `/tmp/yoink.pid`. First launch with `--daemon` starts the resident process. Subsequent launches detect the PID file and send SIGUSR1 to toggle the picker panel.
+**Daemon IPC pattern:** `main.swift` writes PID to a user-scoped runtime directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`). First launch with `--daemon` starts the resident process. Subsequent launches detect the PID file and forward CLI args over a Unix domain socket.
 
 **Data flow:** `main.swift` → `YoinkController` (manages panel lifecycle, keyboard input, search filtering) → `Aerospace` (shells out to `aerospace` CLI to list workspaces/windows, move windows) → `AeroWindow` (data model).
 

@@ -1,0 +1,33 @@
+excluded:
+  - .build
+
+identifier_name:
+  min_length: 1
+
+disabled_rules:
+  - trailing_comma
+  - implicit_optional_initialization
+  - optional_data_string_conversion
+
+line_length:
+  warning: 140
+  error: 200
+
+file_length:
+  warning: 500
+  error: 600
+
+type_body_length:
+  warning: 400
+  error: 500
+
+function_body_length:
+  warning: 110
+  error: 150
+
+large_tuple:
+  warning: 4
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing

@@ -11,8 +11,7 @@ if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
     .trimmingCharacters(in: .whitespacesAndNewlines),
     let pid = pid_t(pidStr),
     pid != getpid(),
-    kill(pid, 0) == 0
-{
+    kill(pid, 0) == 0 {
     // Verify the PID is actually a yoink process (guards against stale PID reuse)
     let check = Process()
     let pipe = Pipe()

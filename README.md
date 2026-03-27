@@ -23,21 +23,30 @@ Press a keybinding and a floating Liquid Glass panel appears, listing every wind
 
 ## Installation
 
-### Build from source
+### Quick install
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/aerospace-yoink.git
 cd aerospace-yoink
+bash install.sh
+```
+
+This builds the release binary, installs it to `/usr/local/bin/yoink`, and sets up a LaunchAgent so the daemon starts automatically on login and respawns if it crashes.
+
+### Build from source (manual)
+
+```bash
 swift build -c release
 ```
 
-The binary will be at `.build/release/yoink`.
-
-Optionally, copy it somewhere in your `$PATH`:
+The binary will be at `.build/release/yoink`. Copy it somewhere in your `$PATH`:
 
 ```bash
-cp .build/release/yoink /usr/local/bin/yoink
+sudo cp .build/release/yoink /usr/local/bin/yoink
+sudo codesign --force --sign - /usr/local/bin/yoink
 ```
+
+Note: re-signing is required after copying, otherwise macOS will kill the binary.
 
 ## Configuration
 
@@ -139,10 +148,14 @@ Sources/
     YoinkController.swift # UI controller, search, keyboard handling
     YoinkStack.swift      # Tracks yoinked window origins for yeet
 Tests/
-  CLIArgsTests.swift      # CLI argument parsing tests
-  ConfigTests.swift       # Config/TOML parser tests
-  DaemonStartupTests.swift # Daemon startup sequence tests
-  IPCTests.swift          # IPC round-trip tests
+  AeroWindowTests.swift     # Window matching/search tests
+  CLIArgsTests.swift        # CLI argument parsing tests
+  ConfigTests.swift         # Config/TOML parser tests
+  DaemonStartupTests.swift  # Daemon startup sequence tests
+  IPCTests.swift            # IPC round-trip tests
+  YoinkStackTests.swift     # Yoink/yeet stack tests
+install.sh                  # Build, install, and start LaunchAgent
+com.yoink.daemon.plist      # LaunchAgent for auto-start on login
 Package.swift
 ```
 

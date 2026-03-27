@@ -399,7 +399,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         default:
             if searchField.isHidden,
                let chars = event.characters, !chars.isEmpty,
-               event.modifierFlags.intersection([.command, .control]).isEmpty {
+               event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 showSearch()
                 panel.makeFirstResponder(searchField)
             }

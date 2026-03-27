@@ -2,8 +2,9 @@ import AppKit
 
 enum Aerospace {
     private static let bin: String = {
-        for p in ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"] {
-            if FileManager.default.fileExists(atPath: p) { return p }
+        for p in ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"]
+            where FileManager.default.fileExists(atPath: p) {
+            return p
         }
         return "/opt/homebrew/bin/aerospace"
     }()
@@ -121,4 +122,3 @@ enum Aerospace {
         }
     }
 }
-
