@@ -12,6 +12,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private let searchChrome = Layout.Search.topPad + Layout.Search.height
         + Layout.Search.gapToList + Layout.Scroll.bottomPad
+    private let searchOnlyChrome = Layout.Search.topPad + Layout.Search.height
+        + Layout.Scroll.bottomPad
     private let listOnlyChrome = Layout.Scroll.topPad + Layout.Scroll.bottomPad
 
     private var workspace = ""
@@ -231,8 +233,10 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     private func resizePanelForRows() {
-        let chrome = searchField.isHidden ? listOnlyChrome : searchChrome
-        let rowCount = CGFloat(max(filtered.count, 1))
+        let emptySearch = filtered.isEmpty && !searchField.isHidden
+        let chrome = searchField.isHidden ? listOnlyChrome
+            : emptySearch ? searchOnlyChrome : searchChrome
+        let rowCount = CGFloat(emptySearch ? 0 : max(filtered.count, 1))
         let neededTableHeight = min(rowCount * Layout.Row.height, maxTableHeight)
         scrollHeightConstraint.constant = neededTableHeight
 
