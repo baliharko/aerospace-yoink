@@ -99,9 +99,9 @@ public func startSocketListener(handler: @escaping @Sendable ([String]) -> Void)
 
         var buf = [UInt8](repeating: 0, count: 1024)
         let n = read(clientFd, &buf, buf.count)
-        guard n > 0 else { return }
-        let message = String(decoding: buf.prefix(n), as: UTF8.self)
-        let args = message.split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
+        guard n >= 0 else { return }
+        let args = n == 0 ? [] : String(decoding: buf.prefix(n), as: UTF8.self)
+            .split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
         DispatchQueue.main.async { handler(args) }
     }
     source.setCancelHandler { close(fd) }

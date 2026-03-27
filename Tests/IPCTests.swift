@@ -42,17 +42,24 @@ final class IPCTests: XCTestCase {
         XCTAssertEqual(receivedArgs, ["--daemon"])
     }
 
-    func testSendEmptyArgsSucceeds() {
-        // Empty args produce a zero-length message. write() sends nothing,
-        // which is a valid no-op — the daemon simply ignores it.
+    @MainActor func testSendEmptyArgsTriggersHandler() {
+        // Empty args (bare `yoink` invocation) should still invoke the handler
+        // with an empty array, so the daemon shows the picker.
         let (path, cleanup) = makeTestSocket()
         defer { cleanup() }
 
-        let source = startTestListener(path: path) { _ in }
+        let exp = expectation(description: "handler called with empty args")
+        nonisolated(unsafe) var receivedArgs: [String]?
+
+        let source = startTestListener(path: path) { args in
+            receivedArgs = args
+            exp.fulfill()
+        }
         defer { source?.cancel() }
 
-        // Should still connect and return true (0 bytes written == 0 bytes requested)
         XCTAssertTrue(sendTestArgs([], path: path))
+        waitForExpectations(timeout: 2)
+        XCTAssertEqual(receivedArgs, [])
     }
 
     func testSendToNonexistentSocketFails() {
@@ -98,9 +105,9 @@ final class IPCTests: XCTestCase {
 
             var buf = [UInt8](repeating: 0, count: 1024)
             let n = read(clientFd, &buf, buf.count)
-            guard n > 0 else { return }
-            let message = String(decoding: buf.prefix(n), as: UTF8.self)
-            let args = message.split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
+            guard n >= 0 else { return }
+            let args = n == 0 ? [] : String(decoding: buf.prefix(n), as: UTF8.self)
+                .split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
             handler(args)
         }
         source.setCancelHandler { close(fd) }
