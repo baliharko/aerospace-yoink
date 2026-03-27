@@ -34,7 +34,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         self.pid = pid
         panel = YoinkPanel(
             contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -147,11 +147,10 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         }
 
         resignObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification,
-            object: panel, queue: .main
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.panel.isVisible else { return }
-            MainActor.assumeIsolated { self.hide() }
+            MainActor.assumeIsolated { self?.hide() }
         }
     }
 
@@ -188,6 +187,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
                 previousApp = NSWorkspace.shared.frontmostApplication
                 panel.alphaValue = 0
+                NSApp.activate(ignoringOtherApps: true)
                 panel.makeKeyAndOrderFront(nil)
                 NSAnimationContext.runAnimationGroup { ctx in
                     ctx.duration = self.config.fadeIn
