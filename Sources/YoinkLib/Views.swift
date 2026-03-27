@@ -2,7 +2,7 @@ import AppKit
 
 class YoinkPanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
 }
 
 class WindowCell: NSTableCellView {
