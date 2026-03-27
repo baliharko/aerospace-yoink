@@ -41,6 +41,7 @@ enum Layout {
         static let fontSize: CGFloat = 24
         static let height: CGFloat = 48
         static let topPad: CGFloat = 24
+        static let bottomPad: CGFloat = 24
         static let leadingPad: CGFloat = 32
         static let trailingPad: CGFloat = 20
         static let gapToList: CGFloat = 12

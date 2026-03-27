@@ -1,5 +1,38 @@
 import AppKit
 
+class CenteredTextFieldCell: NSTextFieldCell {
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        var titleRect = super.titleRect(forBounds: rect)
+        let textHeight = cellSize(forBounds: rect).height
+        titleRect.origin.y = rect.origin.y + (rect.height - textHeight) / 2
+        titleRect.size.height = textHeight
+        return titleRect
+    }
+
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        super.drawInterior(withFrame: titleRect(forBounds: cellFrame), in: controlView)
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText,
+                       delegate: Any?, event: NSEvent?) {
+        super.edit(withFrame: titleRect(forBounds: rect), in: controlView, editor: textObj,
+                   delegate: delegate, event: event)
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText,
+                         delegate: Any?, start selStart: Int, length selLength: Int) {
+        super.select(withFrame: titleRect(forBounds: rect), in: controlView, editor: textObj,
+                     delegate: delegate, start: selStart, length: selLength)
+    }
+}
+
+class CenteredTextField: NSTextField {
+    override class var cellClass: AnyClass? {
+        get { CenteredTextFieldCell.self }
+        set {}
+    }
+}
+
 class YoinkPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -76,6 +109,12 @@ class WindowCell: NSTableCellView {
 }
 
 class WindowRowView: NSTableRowView {
+    override var isOpaque: Bool { false }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        // Don't draw row background — let the glass show through.
+    }
+
     override func drawSelection(in dirtyRect: NSRect) {
         if selectionHighlightStyle != .none {
             let rect = bounds.insetBy(dx: 0, dy: Layout.Row.selectionInsetY)

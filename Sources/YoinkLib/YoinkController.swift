@@ -13,7 +13,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private let searchChrome = Layout.Search.topPad + Layout.Search.height
         + Layout.Search.gapToList + Layout.Scroll.bottomPad
     private let searchOnlyChrome = Layout.Search.topPad + Layout.Search.height
-        + Layout.Scroll.bottomPad
+        + Layout.Search.bottomPad
     private let listOnlyChrome = Layout.Scroll.topPad + Layout.Scroll.bottomPad
 
     private var workspace = ""
@@ -50,10 +50,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
         let content = NSView()
         content.translatesAutoresizingMaskIntoConstraints = false
-        content.wantsLayer = true
 
         // Search field — hidden until user types
-        searchField = NSTextField()
+        searchField = CenteredTextField()
         searchField.font = .systemFont(ofSize: Layout.Search.fontSize)
         searchField.isBordered = false
         searchField.drawsBackground = false
@@ -78,6 +77,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scroll.hasVerticalScroller = false
         scroll.borderType = .noBorder
         scroll.verticalScrollElasticity = .none
+        scroll.contentView.drawsBackground = false
         scroll.contentView.postsBoundsChangedNotifications = false
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsetsZero
@@ -239,6 +239,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         let rowCount = CGFloat(emptySearch ? 0 : max(filtered.count, 1))
         let neededTableHeight = min(rowCount * Layout.Row.height, maxTableHeight)
         scrollHeightConstraint.constant = neededTableHeight
+        tableView.enclosingScrollView?.isHidden = neededTableHeight == 0
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let w = YoinkController.panelWidth(for: screen)
