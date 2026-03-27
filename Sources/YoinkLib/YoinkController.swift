@@ -185,7 +185,10 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                 recalculateMaxTableHeight()
                 resizePanelForRows()
 
-                previousApp = NSWorkspace.shared.frontmostApplication
+                // Only save previousApp if there was a focused window — on an empty
+                // workspace, frontmostApplication points to another workspace's app
+                // and restoring it would yank focus away.
+                previousApp = focusedId != nil ? NSWorkspace.shared.frontmostApplication : nil
                 panel.alphaValue = 0
                 NSApp.activate(ignoringOtherApps: true)
                 panel.makeKeyAndOrderFront(nil)
