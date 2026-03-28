@@ -79,6 +79,10 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scroll.verticalScrollElasticity = .none
         scroll.contentView.drawsBackground = false
         scroll.contentView.postsBoundsChangedNotifications = false
+        scroll.wantsLayer = true
+        scroll.layer?.backgroundColor = .clear
+        scroll.contentView.wantsLayer = true
+        scroll.contentView.layer?.backgroundColor = .clear
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsetsZero
         scroll.scrollerInsets = NSEdgeInsetsZero
@@ -86,6 +90,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
         tableView = NSTableView()
         tableView.backgroundColor = .clear
+        tableView.wantsLayer = true
+        tableView.layer?.backgroundColor = .clear
         tableView.headerView = nil
         tableView.rowHeight = Layout.Row.height
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
