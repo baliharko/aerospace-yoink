@@ -34,4 +34,14 @@ final class AeroWindowTests: XCTestCase {
     func testNoMatchReturnsFalse() {
         XCTAssertFalse(window(appName: "Safari", title: "Apple", workspace: "1").matches("firefox"))
     }
+
+    func testMatchesUnicodeCharacters() {
+        XCTAssertTrue(window(title: "日本語ページ").matches("日本"))
+        XCTAssertTrue(window(appName: "Ünïcödé App").matches("ünïcödé"))
+    }
+
+    func testMatchesWithSpecialCharacters() {
+        XCTAssertTrue(window(title: "file.txt - Editor").matches("file.txt"))
+        XCTAssertTrue(window(title: "project (main)").matches("(main)"))
+    }
 }

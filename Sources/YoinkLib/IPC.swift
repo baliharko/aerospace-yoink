@@ -97,10 +97,17 @@ public func startSocketListener(handler: @escaping @Sendable ([String]) -> Void)
         guard clientFd >= 0 else { return }
         defer { close(clientFd) }
 
+        // Read until EOF — don't assume message fits in a fixed buffer
+        var data = Data()
         var buf = [UInt8](repeating: 0, count: 1024)
-        let n = read(clientFd, &buf, buf.count)
-        guard n >= 0 else { return }
-        let args = n == 0 ? [] : String(decoding: buf.prefix(n), as: UTF8.self)
+        while true {
+            let n = read(clientFd, &buf, buf.count)
+            if n <= 0 { break }
+            data.append(contentsOf: buf.prefix(n))
+            // Guard against oversized messages (16 KB is far beyond any realistic arg list)
+            if data.count > 16384 { break }
+        }
+        let args = data.isEmpty ? [] : String(decoding: data, as: UTF8.self)
             .split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
         DispatchQueue.main.async { handler(args) }
     }

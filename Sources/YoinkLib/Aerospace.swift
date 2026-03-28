@@ -78,13 +78,24 @@ enum Aerospace {
 
         guard !rawOutput.isEmpty else { return (workspace, [], focusedId) }
 
-        let windows: [AeroWindow] = rawOutput.split(separator: "\n").compactMap { line in
+        let windows = parseWindowList(rawOutput, excluding: workspace,
+                                      iconCache: iconCache, defaultIcon: defaultIcon)
+        return (workspace, windows, focusedId)
+    }
+
+    /// Parse `list-windows --all --format "%{window-id}|%{workspace}|%{app-name}|%{window-title}"`
+    /// output into AeroWindow models. Excludes windows on `currentWorkspace`.
+    static func parseWindowList(
+        _ raw: String, excluding currentWorkspace: String,
+        iconCache: [String: NSImage] = [:], defaultIcon: NSImage = NSImage()
+    ) -> [AeroWindow] {
+        raw.split(separator: "\n").compactMap { line in
             let p = line.split(separator: "|", maxSplits: 3).map(String.init)
             guard p.count == 4,
                   let id = Int(p[0].trimmingCharacters(in: .whitespaces))
             else { return nil }
             let space = p[1].trimmingCharacters(in: .whitespaces)
-            if space == workspace { return nil }
+            if space == currentWorkspace { return nil }
             let appName = p[2].trimmingCharacters(in: .whitespaces)
             return AeroWindow(
                 id: id, workspace: space,
@@ -93,7 +104,18 @@ enum Aerospace {
                 icon: iconCache[appName] ?? defaultIcon
             )
         }
-        return (workspace, windows, focusedId)
+    }
+
+    /// Parse `list-windows --all --format "%{window-id}|%{workspace}"` output.
+    static func parseWindowLocations(_ raw: String) -> [(windowId: Int, workspace: String)] {
+        guard !raw.isEmpty else { return [] }
+        return raw.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2,
+                  let id = Int(parts[0].trimmingCharacters(in: .whitespaces))
+            else { return nil }
+            return (id, parts[1].trimmingCharacters(in: .whitespaces))
+        }
     }
 
     static func yoink(_ windowId: Int, to workspace: String, focus: Bool = true) {
@@ -112,13 +134,6 @@ enum Aerospace {
     /// Lightweight query returning window IDs and their current workspaces.
     static func listAllWindowLocations() -> [(windowId: Int, workspace: String)] {
         let raw = run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
-        guard !raw.isEmpty else { return [] }
-        return raw.split(separator: "\n").compactMap { line in
-            let parts = line.split(separator: "|", maxSplits: 1).map(String.init)
-            guard parts.count == 2,
-                  let id = Int(parts[0].trimmingCharacters(in: .whitespaces))
-            else { return nil }
-            return (id, parts[1].trimmingCharacters(in: .whitespaces))
-        }
+        return parseWindowLocations(raw)
     }
 }
