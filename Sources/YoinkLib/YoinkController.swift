@@ -395,7 +395,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         searchField.isHidden = false
         scrollTopHidden.isActive = false
         scrollTopVisible.isActive = true
-        resizePanelForRows()
     }
 
     private func hideSearch() {
