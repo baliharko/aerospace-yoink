@@ -32,7 +32,45 @@ public struct Config: Sendable {
             }
         }
 
+        // No config found — write defaults to XDG config path
+        writeDefault()
         return Config()
+    }
+
+    /// Default config content as TOML with all values shown.
+    public static let defaultTOML = """
+        # Yoink configuration
+        # Place this file at ~/.yoink.toml or ~/.config/yoink/yoink.toml
+
+        # Duration (seconds) for the panel fade-in animation
+        fade-in = 0.1
+
+        # Duration (seconds) for the panel fade-out animation
+        fade-out = 0.08
+
+        # Whether to focus the yoinked window after moving it
+        focus-after-yoink = true
+
+        """
+
+    /// Writes the default config file. Returns the path written, or nil on failure.
+    @discardableResult
+    public static func writeDefault() -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
+            ?? "\(home)/.config"
+        let dir = "\(xdg)/yoink"
+        let path = "\(dir)/yoink.toml"
+
+        do {
+            try FileManager.default.createDirectory(
+                atPath: dir, withIntermediateDirectories: true)
+            try defaultTOML.write(toFile: path, atomically: true, encoding: .utf8)
+            return path
+        } catch {
+            fputs("yoink: failed to write config: \(error.localizedDescription)\n", stderr)
+            return nil
+        }
     }
 
     /// Parse a TOML string into a config. Used by `load()` and tests.
