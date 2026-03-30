@@ -1,35 +1,13 @@
 import AppKit
 import YoinkLib
 
-let pidFile = RuntimePaths.pidFile
-let config = Config.load()
 let args = CLIArgs(arguments: CommandLine.arguments)
 
-// If an existing daemon is running, forward args via socket and exit
-if let pidStr = try? String(contentsOfFile: pidFile, encoding: .utf8)
-    .components(separatedBy: "\n").first?
-    .trimmingCharacters(in: .whitespacesAndNewlines),
-    let pid = pid_t(pidStr),
-    pid != getpid(),
-    kill(pid, 0) == 0 {
-    // Verify the PID is actually a yoink process (guards against stale PID reuse)
-    let check = Process()
-    let pipe = Pipe()
-    check.executableURL = URL(fileURLWithPath: "/bin/ps")
-    check.arguments = ["-p", "\(pid)", "-o", "comm="]
-    check.standardOutput = pipe
-    try? check.run()
-    check.waitUntilExit()
-    let comm = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if comm.hasSuffix("yoink") {
-        if sendArgs(Array(CommandLine.arguments.dropFirst())) {
-            exit(0)
-        }
-        fputs("yoink: failed to connect to daemon\n", stderr)
-        exit(1)
-    }
-    // Stale PID file — fall through to become the new daemon
+// If an existing daemon is running, forward args via socket and exit.
+// A successful socket connection is proof enough — no need to verify the PID
+// via /bin/ps (which costs ~67ms due to Process() overhead).
+if sendArgs(Array(CommandLine.arguments.dropFirst())) {
+    exit(0)
 }
 
 // --yeet with no running daemon is a no-op
@@ -39,6 +17,7 @@ if args.isYeet {
 }
 
 // Become the daemon — create runtime dir and write PID file
+let config = Config.load()
 do {
     try RuntimePaths.ensureDirectory()
 } catch {
@@ -47,6 +26,7 @@ do {
 }
 let stack = YoinkStack()
 let currentPid = getpid()
+let pidFile = RuntimePaths.pidFile
 do {
     try "\(currentPid)".write(toFile: pidFile, atomically: true, encoding: .utf8)
 } catch {

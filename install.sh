@@ -15,13 +15,11 @@ else
 fi
 PID_FILE="$YOINK_DIR/yoink.pid"
 if [ -f "$PID_FILE" ]; then
-    pid=$(head -1 "$PID_FILE" | tr -d '[:space:]')
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-        echo "Stopping running yoink daemon (PID $pid)..."
-        kill "$pid"
-    fi
     rm -f "$PID_FILE" "$YOINK_DIR/yoink.sock"
 fi
+# Kill any remaining yoink processes (manual launches, stale daemons, etc.)
+pkill -x yoink 2>/dev/null && echo "Stopped running yoink process(es)" || true
+sleep 0.5
 
 swift build -c release
 sudo cp .build/release/yoink /usr/local/bin/yoink

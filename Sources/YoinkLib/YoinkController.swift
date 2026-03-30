@@ -29,6 +29,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
+    private var iconCache: [String: NSImage] = [:]
+    private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
+    private var appObserver: Any?
 
     public init(config: Config, stack: YoinkStack, pid: pid_t) {
         self.config = config
@@ -131,6 +134,26 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.hide() }
         }
+
+        rebuildIconCache()
+        defaultIcon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
+        appObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rebuildIconCache() }
+        }
+    }
+
+    private func rebuildIconCache() {
+        iconCache = Dictionary(
+            NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
+                guard let name = app.localizedName, let icon = app.icon else { return nil }
+                icon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
+                return (name, icon)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     // MARK: - Panel Lifecycle
@@ -147,8 +170,11 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scrollTopVisible.isActive = false
         scrollTopHidden.isActive = true
 
+        let icons = iconCache
+        let fallback = defaultIcon
         Task.detached { [weak self] in
-            let (ws, wins, focusedId) = Aerospace.fetchWindows()
+            let (ws, wins, focusedId) = Aerospace.fetchWindows(
+                iconCache: icons, defaultIcon: fallback)
             await MainActor.run { [weak self] in
                 guard let self, !wins.isEmpty else { return }
 

@@ -33,8 +33,12 @@ enum Aerospace {
         FileManager.default.fileExists(atPath: bin)
     }
 
-    /// Fetch workspace + windows + focused window in parallel for speed
-    static func fetchWindows() -> (workspace: String, windows: [AeroWindow], focusedId: Int?) {
+    /// Fetch workspace + windows + focused window in parallel for speed.
+    /// Pass a pre-built icon cache to avoid rebuilding it on every activation.
+    static func fetchWindows(
+        iconCache: [String: NSImage],
+        defaultIcon: NSImage
+    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?) {
         guard isInstalled else {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
             return ("", [], nil)
@@ -64,17 +68,6 @@ enum Aerospace {
             group.leave()
         }
         group.wait()
-
-        let iconCache = Dictionary(
-            NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
-                guard let name = app.localizedName, let icon = app.icon else { return nil }
-                icon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
-                return (name, icon)
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let defaultIcon = NSWorkspace.shared.icon(for: .applicationBundle)
-        defaultIcon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
 
         guard !rawOutput.isEmpty else { return (workspace, [], focusedId) }
 
