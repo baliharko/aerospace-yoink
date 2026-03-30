@@ -7,7 +7,7 @@ final class ConfigTests: XCTestCase {
 
     func testDefaultValues() {
         let config = Config()
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
         XCTAssertEqual(config.fadeOut, 0.08)
         XCTAssertTrue(config.focusAfterYoink)
     }
@@ -85,7 +85,7 @@ final class ConfigTests: XCTestCase {
     func testEmptyFileReturnsDefaults() {
         var config = Config()
         config.parse("")
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
         XCTAssertEqual(config.fadeOut, 0.08)
         XCTAssertTrue(config.focusAfterYoink)
     }
@@ -96,7 +96,7 @@ final class ConfigTests: XCTestCase {
             # just comments
             # nothing else
             """)
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
     }
 
     // MARK: - Invalid input (should keep defaults)
@@ -104,13 +104,13 @@ final class ConfigTests: XCTestCase {
     func testNegativeNumberKeepsDefault() {
         var config = Config()
         config.parse("fade-in = -0.5")
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
     }
 
     func testNonNumericFadeKeepsDefault() {
         var config = Config()
         config.parse("fade-in = abc")
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
     }
 
     func testInvalidBoolKeepsDefault() {
@@ -144,7 +144,7 @@ final class ConfigTests: XCTestCase {
             fade-out = 0.2
             focus-after-yoink = maybe
             """)
-        XCTAssertEqual(config.fadeIn, 0.1)
+        XCTAssertEqual(config.fadeIn, 0)
         XCTAssertEqual(config.fadeOut, 0.2)
         XCTAssertTrue(config.focusAfterYoink)
     }

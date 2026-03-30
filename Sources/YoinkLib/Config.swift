@@ -1,7 +1,7 @@
 import Foundation
 
 public struct Config: Sendable {
-    public var fadeIn: CGFloat = 0.1
+    public var fadeIn: CGFloat = 0
     public var fadeOut: CGFloat = 0.08
     public var focusAfterYoink: Bool = true
 
@@ -43,7 +43,7 @@ public struct Config: Sendable {
         # Place this file at ~/.yoink.toml or ~/.config/yoink/yoink.toml
 
         # Duration (seconds) for the panel fade-in animation
-        fade-in = 0.1
+        fade-in = 0
 
         # Duration (seconds) for the panel fade-out animation
         fade-out = 0.08
