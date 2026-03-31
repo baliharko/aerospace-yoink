@@ -33,15 +33,16 @@ enum Aerospace {
         FileManager.default.fileExists(atPath: bin)
     }
 
-    /// Fetch workspace + windows + focused window in parallel for speed.
+    /// Fetch workspace + windows + focused window + focused monitor in parallel for speed.
     /// Pass a pre-built icon cache to avoid rebuilding it on every activation.
     static func fetchWindows(
         iconCache: [String: NSImage],
         defaultIcon: NSImage
-    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?) {
+    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screen: NSScreen) {
+        let fallbackScreen = NSScreen.main ?? NSScreen.screens[0]
         guard isInstalled else {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
-            return ("", [], nil)
+            return ("", [], nil, fallbackScreen)
         }
         // nonisolated(unsafe) is safe here: each var is written exactly once
         // on a background thread, and group.wait() provides a happens-before
@@ -49,6 +50,7 @@ enum Aerospace {
         nonisolated(unsafe) var workspace = ""
         nonisolated(unsafe) var rawOutput = ""
         nonisolated(unsafe) var focusedId: Int? = nil
+        nonisolated(unsafe) var monitorName = ""
         let group = DispatchGroup()
 
         group.enter()
@@ -67,13 +69,20 @@ enum Aerospace {
             focusedId = focusedWindowId()
             group.leave()
         }
+        group.enter()
+        DispatchQueue.global().async {
+            monitorName = run(["list-monitors", "--focused", "--format", "%{monitor-name}"])
+            group.leave()
+        }
         group.wait()
 
-        guard !rawOutput.isEmpty else { return (workspace, [], focusedId) }
+        let screen = NSScreen.screens.first { $0.localizedName == monitorName } ?? fallbackScreen
+
+        guard !rawOutput.isEmpty else { return (workspace, [], focusedId, screen) }
 
         let windows = parseWindowList(rawOutput, excluding: workspace,
                                       iconCache: iconCache, defaultIcon: defaultIcon)
-        return (workspace, windows, focusedId)
+        return (workspace, windows, focusedId, screen)
     }
 
     /// Parse `list-windows --all --format "%{window-id}|%{workspace}|%{app-name}|%{window-title}"`

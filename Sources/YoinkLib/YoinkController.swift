@@ -29,6 +29,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
+    private var targetScreen: NSScreen = NSScreen.main ?? NSScreen.screens[0]
     private var iconCache: [String: NSImage] = [:]
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
@@ -173,13 +174,14 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         let icons = iconCache
         let fallback = defaultIcon
         Task.detached { [weak self] in
-            let (ws, wins, focusedId) = Aerospace.fetchWindows(
+            let (ws, wins, focusedId, screen) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             await MainActor.run { [weak self] in
                 guard let self, !wins.isEmpty else { return }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws
+                targetScreen = screen
                 allWindows = wins
                 filtered = wins
                 tableView.reloadData()
@@ -267,7 +269,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     private func recalculateMaxTableHeight() {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let screen = targetScreen
         let availableHeight = min(Layout.Panel.maxTableHeight,
             screen.frame.height * Layout.Panel.screenHeightRatio) - listOnlyChrome
         maxTableHeight = floor(availableHeight / Layout.Row.height) * Layout.Row.height
@@ -282,7 +284,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scrollHeightConstraint.constant = neededTableHeight
         tableView.enclosingScrollView?.isHidden = neededTableHeight == 0
 
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let screen = targetScreen
         let w = YoinkController.panelWidth(for: screen)
         let h = neededTableHeight + chrome
         let maxH = maxTableHeight + searchChrome
