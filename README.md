@@ -1,6 +1,7 @@
 # Yoink
 
-A fast, native macOS window picker for [AeroSpace](https://github.com/nikitabobko/AeroSpace). Pull any window from another workspace into your current one — without leaving it.
+I wanted open windows to sometimes come to me instead of me going to them.
+Native macOS window picker for [AeroSpace](https://github.com/nikitabobko/AeroSpace). Pull any window from another workspace into your current one — without leaving it.
 
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-blue)
 ![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange)
@@ -129,35 +130,6 @@ Yoink looks for the `aerospace` CLI in these locations (in order):
 2. `/usr/local/bin/aerospace` (Homebrew on Intel / manual install)
 
 If your `aerospace` binary is elsewhere, you'll need to symlink it to one of these paths.
-
-## Project structure
-
-```
-Sources/
-  YoinkApp/
-    main.swift            # Daemon entry point, PID file, socket IPC
-  YoinkLib/
-    Aerospace.swift       # AeroSpace CLI wrapper, window fetching
-    AeroWindow.swift      # Window data model
-    CLIArgs.swift         # Command-line argument parsing
-    Config.swift          # TOML config parser
-    IPC.swift             # Unix domain socket client/server
-    Layout.swift          # UI layout constants
-    RuntimePaths.swift    # User-scoped runtime directory paths
-    Views.swift           # Panel, cell, and row view classes
-    YoinkController.swift # UI controller, search, keyboard handling
-    YoinkStack.swift      # Tracks yoinked window origins for yeet
-Tests/
-  AeroWindowTests.swift     # Window matching/search tests
-  CLIArgsTests.swift        # CLI argument parsing tests
-  ConfigTests.swift         # Config/TOML parser tests
-  DaemonStartupTests.swift  # Daemon startup sequence tests
-  IPCTests.swift            # IPC round-trip tests
-  YoinkStackTests.swift     # Yoink/yeet stack tests
-install.sh                  # Build, install, and start LaunchAgent
-com.yoink.daemon.plist      # LaunchAgent for auto-start on login
-Package.swift
-```
 
 ## License
 
