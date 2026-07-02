@@ -233,44 +233,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     // MARK: - Layout
 
-    private static func makeScrollView() -> NSScrollView {
-        let scroll = NSScrollView()
-        scroll.drawsBackground = false
-        scroll.hasVerticalScroller = false
-        scroll.borderType = .noBorder
-        scroll.verticalScrollElasticity = .none
-        scroll.contentView.drawsBackground = false
-        scroll.contentView.postsBoundsChangedNotifications = false
-        scroll.wantsLayer = true
-        scroll.layer?.backgroundColor = .clear
-        scroll.contentView.wantsLayer = true
-        scroll.contentView.layer?.backgroundColor = .clear
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsetsZero
-        scroll.scrollerInsets = NSEdgeInsetsZero
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        return scroll
-    }
-
-    private static func makeTableView() -> NSTableView {
-        let tv = NSTableView()
-        tv.backgroundColor = .clear
-        tv.wantsLayer = true
-        tv.layer?.backgroundColor = .clear
-        tv.headerView = nil
-        tv.rowHeight = Layout.Row.height
-        tv.intercellSpacing = NSSize(width: 0, height: 0)
-        tv.selectionHighlightStyle = .regular
-        tv.gridStyleMask = []
-        tv.style = .plain
-        let col = NSTableColumn(identifier: .init("main"))
-        col.resizingMask = .autoresizingMask
-        tv.addTableColumn(col)
-        tv.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        tv.sizeLastColumnToFit()
-        return tv
-    }
-
     private static func panelWidth(for screen: NSScreen) -> CGFloat {
         min(Layout.Panel.maxWidth, screen.frame.width * Layout.Panel.screenWidthRatio)
     }
