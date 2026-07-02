@@ -66,6 +66,28 @@ final class IPCTests: XCTestCase {
         XCTAssertFalse(sendTestArgs(["--yeet"], path: "/tmp/yoink-nonexistent-\(UUID()).sock"))
     }
 
+    /// A client that connects but never sends must not wedge the daemon:
+    /// the listener's receive timeout has to unblock the handler so later
+    /// messages still get through. Uses the real listener/sender pair.
+    @MainActor func testStalledClientDoesNotBlockSubsequentMessages() throws {
+        try RuntimePaths.ensureDirectory()
+
+        let exp = expectation(description: "message received despite stalled client")
+        XCTAssertTrue(startSocketListener { args in
+            if args == ["--yeet"] { exp.fulfill() }
+        })
+
+        // Connect and go silent — no write, no close.
+        let stalledFd = connectOnly(path: socketPath)
+        XCTAssertGreaterThanOrEqual(stalledFd, 0, "stalled client should connect")
+        defer { close(stalledFd) }
+
+        // A real message queued behind the stalled one must still arrive
+        // once the 2 s receive timeout fires.
+        XCTAssertTrue(sendArgs(["--yeet"]))
+        waitForExpectations(timeout: 6)
+    }
+
     // MARK: - Helpers
 
     private func makeTestSocket() -> (path: String, cleanup: () -> Void) {
@@ -113,6 +135,34 @@ final class IPCTests: XCTestCase {
         source.setCancelHandler { close(fd) }
         source.resume()
         return source
+    }
+
+    /// Connects to a Unix socket and returns the fd without sending anything.
+    /// Returns -1 on failure.
+    private func connectOnly(path: String) -> Int32 {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return -1 }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let maxLen = MemoryLayout.size(ofValue: addr.sun_path) - 1
+        withUnsafeMutablePointer(to: &addr.sun_path) { pathPtr in
+            pathPtr.withMemoryRebound(to: CChar.self, capacity: maxLen + 1) { buf in
+                _ = path.withCString { strncpy(buf, $0, maxLen) }
+                buf[maxLen] = 0
+            }
+        }
+
+        let connectResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                Foundation.connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard connectResult == 0 else {
+            close(fd)
+            return -1
+        }
+        return fd
     }
 
     private func sendTestArgs(_ args: [String], path: String) -> Bool {

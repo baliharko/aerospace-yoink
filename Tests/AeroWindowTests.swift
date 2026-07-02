@@ -8,40 +8,45 @@ final class AeroWindowTests: XCTestCase {
         AeroWindow(id: 1, workspace: workspace, appName: appName, title: title, icon: NSImage())
     }
 
+    /// Mirrors the call site: the query is lowercased once, then matched.
+    private func matches(_ w: AeroWindow, _ query: String) -> Bool {
+        w.matches(lowercasedQuery: query.lowercased())
+    }
+
     func testEmptyQueryMatchesEverything() {
-        XCTAssertTrue(window().matches(""))
+        XCTAssertTrue(matches(window(), ""))
     }
 
     func testMatchesAppNameCaseInsensitive() {
-        XCTAssertTrue(window(appName: "Safari").matches("safari"))
-        XCTAssertTrue(window(appName: "Safari").matches("SAFARI"))
+        XCTAssertTrue(matches(window(appName: "Safari"), "safari"))
+        XCTAssertTrue(matches(window(appName: "Safari"), "SAFARI"))
     }
 
     func testMatchesTitleCaseInsensitive() {
-        XCTAssertTrue(window(title: "Inbox - Mail").matches("inbox"))
-        XCTAssertTrue(window(title: "Inbox - Mail").matches("MAIL"))
+        XCTAssertTrue(matches(window(title: "Inbox - Mail"), "inbox"))
+        XCTAssertTrue(matches(window(title: "Inbox - Mail"), "MAIL"))
     }
 
     func testMatchesWorkspaceCaseInsensitive() {
-        XCTAssertTrue(window(workspace: "Dev").matches("dev"))
-        XCTAssertTrue(window(workspace: "Dev").matches("DEV"))
+        XCTAssertTrue(matches(window(workspace: "Dev"), "dev"))
+        XCTAssertTrue(matches(window(workspace: "Dev"), "DEV"))
     }
 
     func testPartialSubstringMatches() {
-        XCTAssertTrue(window(appName: "Visual Studio Code").matches("studio"))
+        XCTAssertTrue(matches(window(appName: "Visual Studio Code"), "studio"))
     }
 
     func testNoMatchReturnsFalse() {
-        XCTAssertFalse(window(appName: "Safari", title: "Apple", workspace: "1").matches("firefox"))
+        XCTAssertFalse(matches(window(appName: "Safari", title: "Apple", workspace: "1"), "firefox"))
     }
 
     func testMatchesUnicodeCharacters() {
-        XCTAssertTrue(window(title: "日本語ページ").matches("日本"))
-        XCTAssertTrue(window(appName: "Ünïcödé App").matches("ünïcödé"))
+        XCTAssertTrue(matches(window(title: "日本語ページ"), "日本"))
+        XCTAssertTrue(matches(window(appName: "Ünïcödé App"), "ünïcödé"))
     }
 
     func testMatchesWithSpecialCharacters() {
-        XCTAssertTrue(window(title: "file.txt - Editor").matches("file.txt"))
-        XCTAssertTrue(window(title: "project (main)").matches("(main)"))
+        XCTAssertTrue(matches(window(title: "file.txt - Editor"), "file.txt"))
+        XCTAssertTrue(matches(window(title: "project (main)"), "(main)"))
     }
 }

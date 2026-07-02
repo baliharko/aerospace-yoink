@@ -85,7 +85,11 @@ public struct Config: Sendable {
             }
 
             let key = trimmed[trimmed.startIndex..<eqIdx].trimmingCharacters(in: .whitespaces)
-            let raw = trimmed[trimmed.index(after: eqIdx)...].trimmingCharacters(in: .whitespaces)
+            var value = trimmed[trimmed.index(after: eqIdx)...]
+            if let hashIdx = value.firstIndex(of: "#") { // strip inline comment
+                value = value[value.startIndex..<hashIdx]
+            }
+            let raw = value.trimmingCharacters(in: .whitespaces)
 
             switch key {
             case "fade-in":

@@ -23,8 +23,14 @@ enum Aerospace {
             fputs("yoink: failed to run aerospace: \(error.localizedDescription)\n", stderr)
             return ""
         }
+        // Drain the pipe before waiting — waiting first deadlocks once the
+        // child fills the pipe buffer (large list-windows output).
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        if proc.terminationStatus != 0 {
+            fputs("yoink: aerospace \(args.first ?? "") exited with status \(proc.terminationStatus)\n", stderr)
+        }
+        return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
@@ -38,8 +44,8 @@ enum Aerospace {
     static func fetchWindows(
         iconCache: [String: NSImage],
         defaultIcon: NSImage
-    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screen: NSScreen) {
-        let fallbackScreen = NSScreen.main ?? NSScreen.screens[0]
+    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screen: NSScreen?) {
+        let fallbackScreen = NSScreen.main ?? NSScreen.screens.first
         guard isInstalled else {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
             return ("", [], nil, fallbackScreen)
