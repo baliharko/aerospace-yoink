@@ -76,6 +76,16 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.fadeOut, 0.2)
     }
 
+    func testStripsInlineComments() {
+        var config = Config()
+        config.parse("""
+            fade-in = 0.3 # snappy
+            focus-after-yoink = false  # stay put
+            """)
+        XCTAssertEqual(config.fadeIn, 0.3)
+        XCTAssertFalse(config.focusAfterYoink)
+    }
+
     func testHandlesExtraWhitespace() {
         var config = Config()
         config.parse("  fade-in   =   0.4  ")

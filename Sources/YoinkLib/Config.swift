@@ -73,19 +73,28 @@ public struct Config: Sendable {
         }
     }
 
+    /// Split a `key = value` line into trimmed key and value,
+    /// stripping any inline `#` comment. Returns nil if there is no `=`.
+    private static func keyValue(_ trimmed: String) -> (key: String, value: String)? {
+        guard let eqIdx = trimmed.firstIndex(of: "=") else { return nil }
+        let key = trimmed[trimmed.startIndex..<eqIdx].trimmingCharacters(in: .whitespaces)
+        var value = trimmed[trimmed.index(after: eqIdx)...]
+        if let hashIdx = value.firstIndex(of: "#") {
+            value = value[value.startIndex..<hashIdx]
+        }
+        return (key, value.trimmingCharacters(in: .whitespaces))
+    }
+
     /// Parse a TOML string into a config. Used by `load()` and tests.
     public mutating func parse(_ content: String, path: String = "<string>") {
         for (lineNumber, line) in content.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
 
-            guard let eqIdx = trimmed.firstIndex(of: "=") else {
+            guard let (key, raw) = Self.keyValue(trimmed) else {
                 fputs("yoink: \(path):\(lineNumber + 1): expected 'key = value'\n", stderr)
                 continue
             }
-
-            let key = trimmed[trimmed.startIndex..<eqIdx].trimmingCharacters(in: .whitespaces)
-            let raw = trimmed[trimmed.index(after: eqIdx)...].trimmingCharacters(in: .whitespaces)
 
             switch key {
             case "fade-in":

@@ -23,9 +23,10 @@ struct AeroWindow {
         self.workspaceLower = workspace.lowercased()
     }
 
-    func matches(_ query: String) -> Bool {
-        if query.isEmpty { return true }
-        let q = query.lowercased()
+    /// `q` must already be lowercased — callers lowercase once per search,
+    /// not once per window.
+    func matches(lowercasedQuery q: String) -> Bool {
+        if q.isEmpty { return true }
         return appNameLower.contains(q)
             || titleLower.contains(q)
             || workspaceLower.contains(q)

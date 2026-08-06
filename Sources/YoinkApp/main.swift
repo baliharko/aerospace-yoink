@@ -24,7 +24,10 @@ do {
     fputs("yoink: failed to create runtime directory: \(error.localizedDescription)\n", stderr)
     exit(1)
 }
+// Restore any yoink stack a previous daemon left behind (safe: the socket
+// check above proved no daemon is alive), then claim the PID file.
 let stack = YoinkStack()
+stack.load()
 let currentPid = getpid()
 let pidFile = RuntimePaths.pidFile
 do {
@@ -33,12 +36,25 @@ do {
     fputs("yoink: failed to write PID file: \(error.localizedDescription)\n", stderr)
     exit(1)
 }
+if !stack.isEmpty {
+    stack.save(pid: currentPid) // re-persist restored entries under our PID
+}
 
 // Clean up PID file, socket, and runtime directory on exit
 atexit {
     unlink(RuntimePaths.pidFile)
     unlink(RuntimePaths.socketPath)
     rmdir(RuntimePaths.dir) // succeeds only if empty
+}
+
+// atexit doesn't run on signals — exit cleanly on SIGTERM/SIGINT (launchd
+// stops the daemon with SIGTERM) so the cleanup above still happens.
+let signalSources: [DispatchSourceSignal] = [SIGTERM, SIGINT].map { sig in
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler { exit(0) }
+    source.resume()
+    return source
 }
 
 let app = NSApplication.shared
@@ -50,6 +66,9 @@ let controller = YoinkController(config: config, stack: stack, pid: currentPid)
 guard startSocketListener(handler: { rawArgs in
     MainActor.assumeIsolated {
         let incoming = CLIArgs(arguments: rawArgs)
+        // A second `yoink --daemon` launch forwards its args here — the
+        // daemon is already running, so ignore it rather than popping the picker.
+        guard !incoming.isDaemon else { return }
         if incoming.isYeet {
             controller.yeet()
         } else {

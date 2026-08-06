@@ -29,7 +29,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
-    private var targetScreen: NSScreen = NSScreen.main ?? NSScreen.screens[0]
+    private var targetScreen: NSScreen? = NSScreen.main ?? NSScreen.screens.first
     private var iconCache: [String: NSImage] = [:]
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
@@ -177,7 +177,14 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             let (ws, wins, focusedId, screen) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             await MainActor.run { [weak self] in
-                guard let self, !wins.isEmpty else { return }
+                guard let self else { return }
+                if ws.isEmpty {
+                    // The focused-workspace query failed — aerospace itself is
+                    // broken/absent, not just an empty window list.
+                    fputs("yoink: could not query workspaces — is AeroSpace running?\n", stderr)
+                    return
+                }
+                guard !wins.isEmpty, let screen else { return }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws
@@ -226,50 +233,12 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     // MARK: - Layout
 
-    private static func makeScrollView() -> NSScrollView {
-        let scroll = NSScrollView()
-        scroll.drawsBackground = false
-        scroll.hasVerticalScroller = false
-        scroll.borderType = .noBorder
-        scroll.verticalScrollElasticity = .none
-        scroll.contentView.drawsBackground = false
-        scroll.contentView.postsBoundsChangedNotifications = false
-        scroll.wantsLayer = true
-        scroll.layer?.backgroundColor = .clear
-        scroll.contentView.wantsLayer = true
-        scroll.contentView.layer?.backgroundColor = .clear
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsetsZero
-        scroll.scrollerInsets = NSEdgeInsetsZero
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        return scroll
-    }
-
-    private static func makeTableView() -> NSTableView {
-        let tv = NSTableView()
-        tv.backgroundColor = .clear
-        tv.wantsLayer = true
-        tv.layer?.backgroundColor = .clear
-        tv.headerView = nil
-        tv.rowHeight = Layout.Row.height
-        tv.intercellSpacing = NSSize(width: 0, height: 0)
-        tv.selectionHighlightStyle = .regular
-        tv.gridStyleMask = []
-        tv.style = .plain
-        let col = NSTableColumn(identifier: .init("main"))
-        col.resizingMask = .autoresizingMask
-        tv.addTableColumn(col)
-        tv.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-        tv.sizeLastColumnToFit()
-        return tv
-    }
-
     private static func panelWidth(for screen: NSScreen) -> CGFloat {
         min(Layout.Panel.maxWidth, screen.frame.width * Layout.Panel.screenWidthRatio)
     }
 
     private func recalculateMaxTableHeight() {
-        let screen = targetScreen
+        guard let screen = targetScreen else { return }
         let availableHeight = min(Layout.Panel.maxTableHeight,
             screen.frame.height * Layout.Panel.screenHeightRatio) - listOnlyChrome
         maxTableHeight = floor(availableHeight / Layout.Row.height) * Layout.Row.height
@@ -284,7 +253,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scrollHeightConstraint.constant = neededTableHeight
         tableView.enclosingScrollView?.isHidden = neededTableHeight == 0
 
-        let screen = targetScreen
+        guard let screen = targetScreen else { return }
         let w = YoinkController.panelWidth(for: screen)
         let h = neededTableHeight + chrome
         let maxH = maxTableHeight + searchChrome
@@ -337,7 +306,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private func startPollTimerIfNeeded() {
         guard !stack.isEmpty, pollTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 3, repeating: 3)
+        timer.schedule(deadline: .now() + 3, repeating: 3, leeway: .milliseconds(500))
         timer.setEventHandler { [weak self] in
             self?.pollWindowLocations()
         }
@@ -469,7 +438,13 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     public func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        WindowRowView()
+        let id = NSUserInterfaceItemIdentifier("row")
+        if let reused = tv.makeView(withIdentifier: id, owner: nil) as? WindowRowView {
+            return reused
+        }
+        let rowView = WindowRowView()
+        rowView.identifier = id
+        return rowView
     }
 
     // MARK: - NSTextFieldDelegate
@@ -480,7 +455,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             hideSearch()
             return
         }
-        filtered = allWindows.filter { $0.matches(q) }
+        let lowered = q.lowercased()
+        filtered = allWindows.filter { $0.matches(lowercasedQuery: lowered) }
         tableView.reloadData()
         if !filtered.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)

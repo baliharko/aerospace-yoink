@@ -39,6 +39,11 @@ public func sendArgs(_ args: [String]) -> Bool {
     guard fd >= 0 else { return false }
     defer { close(fd) }
 
+    // Fail with a write error instead of dying from SIGPIPE if the daemon
+    // closes the connection mid-send.
+    var noSigpipe: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigpipe, socklen_t(MemoryLayout<Int32>.size))
+
     guard var addr = makeUnixAddress(path: socketPath) else { return false }
     let connectResult = withSockAddr(&addr) { Foundation.connect(fd, $0, $1) }
     guard connectResult == 0 else { return false }
@@ -97,12 +102,18 @@ public func startSocketListener(handler: @escaping @Sendable ([String]) -> Void)
         guard clientFd >= 0 else { return }
         defer { close(clientFd) }
 
+        // Bound each read so a client that connects but never sends (or never
+        // closes) can't wedge this handler — dispatch source handlers don't
+        // fire re-entrantly, so a blocked read here would stall all future IPC.
+        var timeout = timeval(tv_sec: 2, tv_usec: 0)
+        setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
         // Read until EOF — don't assume message fits in a fixed buffer
         var data = Data()
         var buf = [UInt8](repeating: 0, count: 1024)
         while true {
             let n = read(clientFd, &buf, buf.count)
-            if n <= 0 { break }
+            if n <= 0 { break } // EOF, error, or receive timeout
             data.append(contentsOf: buf.prefix(n))
             // Guard against oversized messages (16 KB is far beyond any realistic arg list)
             if data.count > 16384 { break }

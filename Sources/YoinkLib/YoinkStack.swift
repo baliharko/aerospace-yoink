@@ -51,13 +51,15 @@ public class YoinkStack {
         )
     }
 
-    /// Load stack from pid file. Only restores entries if the stored PID matches.
-    public func load(pid: pid_t) {
+    /// Load stack entries left behind by a previous daemon. The stored PID is
+    /// only checked for well-formedness, not identity — the caller has already
+    /// established no daemon is running (its socket didn't answer), and stale
+    /// entries are pruned by the location poll once the daemon is up.
+    public func load() {
         guard let content = try? String(contentsOfFile: pidFilePath, encoding: .utf8) else { return }
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard let firstLine = lines.first,
-              let storedPid = pid_t(firstLine.trimmingCharacters(in: .whitespacesAndNewlines)),
-              storedPid == pid
+              pid_t(firstLine.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
         else { return }
 
         entries = lines.dropFirst().compactMap { line in
