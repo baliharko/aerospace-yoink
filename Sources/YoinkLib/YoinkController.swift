@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
+public class YoinkController: NSObject, NSTextFieldDelegate {
     private let panel: YoinkPanel
     private let searchField: NSTextField
     private let tableView: NSTableView
@@ -18,7 +18,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private var workspace = ""
     private var allWindows: [AeroWindow] = []
-    private var filtered: [AeroWindow] = []
+    private(set) var filtered: [AeroWindow] = []
     private var keyMonitor: Any?
     private var resignObserver: Any?
 
@@ -445,33 +445,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             }
             return event
         }
-    }
-
-    // MARK: - NSTableViewDataSource
-
-    public func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
-
-    // MARK: - NSTableViewDelegate
-
-    public func tableView(_ tv: NSTableView, viewFor col: NSTableColumn?, row: Int) -> NSView? {
-        let id = NSUserInterfaceItemIdentifier("cell")
-        let cell = tv.makeView(withIdentifier: id, owner: nil) as? WindowCell ?? {
-            let c = WindowCell(frame: .zero)
-            c.identifier = id
-            return c
-        }()
-        cell.configure(filtered[row])
-        return cell
-    }
-
-    public func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        let id = NSUserInterfaceItemIdentifier("row")
-        if let reused = tv.makeView(withIdentifier: id, owner: nil) as? WindowRowView {
-            return reused
-        }
-        let rowView = WindowRowView()
-        rowView.identifier = id
-        return rowView
     }
 
     // MARK: - NSTextFieldDelegate
