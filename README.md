@@ -11,7 +11,7 @@ Native macOS window picker for [AeroSpace](https://github.com/nikitabobko/AeroSp
 Press a keybinding and a floating Liquid Glass panel appears, listing every window from your other AeroSpace workspaces. Select one and it gets moved or "**yoinked**" into your focused workspace.
 
 - Runs as a background daemon — instant response on hotkey press
-- Type-to-filter search that dynamically resizes the panel
+- Type-to-filter search that dynamically resizes the panel. Every word must match the app, title, or workspace, in any order (`chrome github`)
 - Keyboard-driven: arrow keys to navigate, Enter to yoink, Escape to dismiss
 - Shows app icons, names, window titles, and workspace badges
 - Adapts to screen size and works across multiple monitors

@@ -482,8 +482,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             hideSearch()
             return
         }
-        let lowered = q.lowercased()
-        filtered = allWindows.filter { $0.matches(lowercasedQuery: lowered) }
+        let terms = AeroWindow.searchTerms(q)
+        filtered = allWindows.filter { $0.matches(terms: terms) }
         reloadFiltered()
     }
 }
