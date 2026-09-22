@@ -436,7 +436,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             return nil
         default:
             if searchField.isHidden,
-               let chars = event.characters, !chars.isEmpty,
+               let chars = event.characters, KeyCode.opensSearch(chars),
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 showSearch()
                 panel.makeFirstResponder(searchField)
