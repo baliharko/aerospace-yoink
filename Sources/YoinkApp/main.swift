@@ -24,8 +24,9 @@ do {
     fputs("yoink: failed to create runtime directory: \(error.localizedDescription)\n", stderr)
     exit(1)
 }
-// Restore any yoink stack a previous daemon left behind (safe: the socket
-// check above proved no daemon is alive), then claim the PID file.
+// Restore any yoink stack a previous daemon left behind in this session
+// (safe: the socket check above proved no daemon is alive), then claim the
+// PID file.
 let stack = YoinkStack()
 stack.load()
 let currentPid = getpid()
@@ -35,9 +36,6 @@ do {
 } catch {
     fputs("yoink: failed to write PID file: \(error.localizedDescription)\n", stderr)
     exit(1)
-}
-if !stack.isEmpty {
-    stack.save(pid: currentPid) // re-persist restored entries under our PID
 }
 
 // Clean up PID file, socket, and runtime directory on exit
@@ -60,7 +58,7 @@ let signalSources: [DispatchSourceSignal] = [SIGTERM, SIGINT].map { sig in
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-let controller = YoinkController(config: config, stack: stack, pid: currentPid)
+let controller = YoinkController(config: config, stack: stack)
 
 // Listen for commands on Unix domain socket
 guard startSocketListener(handler: { rawArgs in

@@ -24,7 +24,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private let config: Config
     private let stack: YoinkStack
-    private let pid: pid_t
     private var pollTimer: DispatchSourceTimer?
     private var isPolling = false
     /// Yoinks whose move hasn't landed yet — a location snapshot taken
@@ -40,10 +39,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
 
-    public init(config: Config, stack: YoinkStack, pid: pid_t) {
+    public init(config: Config, stack: YoinkStack) {
         self.config = config
         self.stack = stack
-        self.pid = pid
         panel = YoinkPanel(
             contentRect: .zero,
             styleMask: [.borderless],
@@ -291,7 +289,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         let focus = focusAfterYoink
         let ws = workspace
         stack.push(windowId: windowId, originWorkspace: win.workspace, destinationWorkspace: ws)
-        stack.save(pid: pid)
+        stack.save()
         stackGeneration += 1
         pendingMoves += 1
         startPollTimerIfNeeded()
@@ -310,7 +308,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// Pop the most recently yoinked window and send it back to its origin.
     public func yeet() {
         guard let entry = stack.pop() else { return }
-        stack.save(pid: pid)
+        stack.save()
         stopPollTimerIfEmpty()
         // Off the main thread, like yoinks: a wedged AeroSpace would otherwise
         // freeze the daemon while its socket keeps accepting commands.
@@ -364,7 +362,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                     }
                 }
                 if changed {
-                    self.stack.save(pid: self.pid)
+                    self.stack.save()
                     self.stopPollTimerIfEmpty()
                 }
             }

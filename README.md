@@ -122,6 +122,8 @@ You can bind it to a hotkey alongside the regular yoink trigger:
 
 The stack is automatically cleaned up: if you manually move a yoinked window to a different workspace, it gets removed from the stack so yeet won't try to move it again.
 
+The stack survives daemon restarts within the same login session. It's discarded after a reboot or re-login, since window IDs are reused.
+
 ## How AeroSpace discovers the binary
 
 Yoink looks for the `aerospace` CLI in these locations (in order):
