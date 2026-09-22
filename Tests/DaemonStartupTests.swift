@@ -40,6 +40,69 @@ final class DaemonStartupTests: RuntimeDirTestCase {
         XCTAssertTrue(RuntimePaths.socketPath.hasPrefix(RuntimePaths.dir))
     }
 
+    // MARK: - Daemon lock
+
+    func testDaemonLockIsExclusive() throws {
+        try RuntimePaths.ensureDirectory()
+        let fd = try XCTUnwrap(try DaemonLock.acquire())
+        // flock locks belong to the open file description, so a second open
+        // in this same process contends just like a second launch would.
+        XCTAssertNil(try DaemonLock.acquire())
+
+        close(fd)
+        let again = try XCTUnwrap(try DaemonLock.acquire(), "lock should be free once the holder closes it")
+        close(again)
+    }
+
+    func testAcquireOrForwardTakesFreeLock() throws {
+        try RuntimePaths.ensureDirectory()
+        unlink(RuntimePaths.socketPath)
+        guard case .daemon(let fd) = try DaemonLock.acquireOrForward(["--daemon"], timeout: 0.2) else {
+            return XCTFail("a free lock should make us the daemon")
+        }
+        close(fd)
+    }
+
+    /// Losing the race to a launch that's still starting up: our args must
+    /// reach it once its socket is bound.
+    @MainActor func testAcquireOrForwardWaitsForStartingDaemon() throws {
+        try RuntimePaths.ensureDirectory()
+        unlink(RuntimePaths.socketPath)
+        let holder = try XCTUnwrap(try DaemonLock.acquire())
+        defer { close(holder) }
+
+        let exp = expectation(description: "args arrive once the listener is up")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
+            _ = startSocketListener { args in
+                if args == ["--yeet"] { exp.fulfill() }
+            }
+        }
+        XCTAssertEqual(try DaemonLock.acquireOrForward(["--yeet"], timeout: 3), .forwarded)
+        waitForExpectations(timeout: 3)
+    }
+
+    /// The holder can be a short-lived launch (e.g. `--yeet` with no daemon)
+    /// that exits without becoming the daemon — we must take over, not give up.
+    func testAcquireOrForwardTakesOverFromTransientHolder() throws {
+        try RuntimePaths.ensureDirectory()
+        unlink(RuntimePaths.socketPath)
+        let holder = try XCTUnwrap(try DaemonLock.acquire())
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { close(holder) }
+
+        guard case .daemon(let fd) = try DaemonLock.acquireOrForward(["--daemon"], timeout: 3) else {
+            return XCTFail("should take the lock once the transient holder exits")
+        }
+        close(fd)
+    }
+
+    func testAcquireOrForwardTimesOut() throws {
+        try RuntimePaths.ensureDirectory()
+        unlink(RuntimePaths.socketPath)
+        let holder = try XCTUnwrap(try DaemonLock.acquire())
+        defer { close(holder) }
+        XCTAssertEqual(try DaemonLock.acquireOrForward(["--yeet"], timeout: 0.2), .timedOut)
+    }
+
     // MARK: - Socket listener startup
 
     @MainActor func testSocketListenerBindsSuccessfully() throws {

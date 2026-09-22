@@ -66,4 +66,16 @@ enum KeyCode {
     static let enter = 76
     static let downArrow = 125
     static let upArrow = 126
+
+    /// Whether a keystroke producing `characters` should open the filter field:
+    /// printable text only. Arrow, function and navigation keys produce
+    /// private-use characters (U+F700–U+F8FF); Tab and Backspace are controls.
+    static func opensSearch(_ characters: String) -> Bool {
+        !characters.isEmpty && characters.unicodeScalars.allSatisfy { scalar in
+            switch scalar.properties.generalCategory {
+            case .control, .format, .privateUse: false
+            default: true
+            }
+        }
+    }
 }

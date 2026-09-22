@@ -24,7 +24,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private let config: Config
     private let stack: YoinkStack
-    private let pid: pid_t
     private var pollTimer: DispatchSourceTimer?
     private var isPolling = false
     /// Yoinks whose move hasn't landed yet — a location snapshot taken
@@ -40,10 +39,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
 
-    public init(config: Config, stack: YoinkStack, pid: pid_t) {
+    public init(config: Config, stack: YoinkStack) {
         self.config = config
         self.stack = stack
-        self.pid = pid
         panel = YoinkPanel(
             contentRect: .zero,
             styleMask: [.borderless],
@@ -184,7 +182,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         // GCD, not a detached Task: fetchWindows blocks its thread on
         // subprocesses, which would starve the Swift concurrency pool.
         DispatchQueue.global(qos: .userInitiated).async {
-            let (ws, wins, focusedId, screen) = Aerospace.fetchWindows(
+            let (ws, wins, focusedId, screenIndex) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -194,7 +192,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                     fputs("yoink: could not query workspaces — is AeroSpace running?\n", stderr)
                     return
                 }
-                guard !wins.isEmpty, let screen else { return }
+                let screens = NSScreen.screens
+                let focusedScreen = screenIndex.flatMap { screens.indices.contains($0) ? screens[$0] : nil }
+                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else { return }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws
@@ -291,7 +291,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         let focus = focusAfterYoink
         let ws = workspace
         stack.push(windowId: windowId, originWorkspace: win.workspace, destinationWorkspace: ws)
-        stack.save(pid: pid)
+        stack.save()
         stackGeneration += 1
         pendingMoves += 1
         startPollTimerIfNeeded()
@@ -310,7 +310,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// Pop the most recently yoinked window and send it back to its origin.
     public func yeet() {
         guard let entry = stack.pop() else { return }
-        stack.save(pid: pid)
+        stack.save()
         stopPollTimerIfEmpty()
         // Off the main thread, like yoinks: a wedged AeroSpace would otherwise
         // freeze the daemon while its socket keeps accepting commands.
@@ -364,7 +364,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                     }
                 }
                 if changed {
-                    self.stack.save(pid: self.pid)
+                    self.stack.save()
                     self.stopPollTimerIfEmpty()
                 }
             }
@@ -438,7 +438,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             return nil
         default:
             if searchField.isHidden,
-               let chars = event.characters, !chars.isEmpty,
+               let chars = event.characters, KeyCode.opensSearch(chars),
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
                 showSearch()
                 panel.makeFirstResponder(searchField)

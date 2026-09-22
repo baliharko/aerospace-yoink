@@ -19,6 +19,10 @@ public enum RuntimePaths {
 
     public static var pidFile: String { "\(dir)/yoink.pid" }
     public static var socketPath: String { "\(dir)/yoink.sock" }
+    /// Yoink stack. Unlike the PID file and socket, it outlives the daemon.
+    public static var stackFile: String { "\(dir)/yoink.stack" }
+    /// See `DaemonLock`. Never deleted.
+    public static var lockFile: String { "\(dir)/yoink.lock" }
 
     /// Creates the runtime directory with user-only permissions (0700).
     /// Throws if the directory cannot be created or secured.

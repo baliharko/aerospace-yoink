@@ -66,13 +66,12 @@ final class YoinkStackTests: RuntimeDirTestCase {
 
     func testSaveAndLoadRoundTrip() throws {
         try RuntimePaths.ensureDirectory()
-        let pid = getpid()
 
         let stack = YoinkStack()
         stack.push(windowId: 1, originWorkspace: "2", destinationWorkspace: "1")
         stack.push(windowId: 3, originWorkspace: "4", destinationWorkspace: "1")
-        stack.save(pid: pid)
-        defer { unlink(RuntimePaths.pidFile) }
+        stack.save()
+        defer { unlink(RuntimePaths.stackFile) }
 
         let loaded = YoinkStack()
         loaded.load()
@@ -81,26 +80,57 @@ final class YoinkStackTests: RuntimeDirTestCase {
         XCTAssertEqual(loaded.entries[1].windowId, 1)
     }
 
-    func testLoadRestoresEntriesWrittenByAnotherPid() throws {
-        // A restarted daemon has a new PID but must still restore the stack
-        // the previous daemon persisted.
+    func testStackIsNotStoredInPidFile() throws {
+        // The daemon deletes its PID file on a clean exit; the stack has to
+        // live elsewhere to survive a restart.
+        try RuntimePaths.ensureDirectory()
+        unlink(RuntimePaths.pidFile)
+
+        let stack = YoinkStack()
+        stack.push(windowId: 1, originWorkspace: "2", destinationWorkspace: "1")
+        stack.save()
+        defer { unlink(RuntimePaths.stackFile) }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RuntimePaths.pidFile))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RuntimePaths.stackFile))
+    }
+
+    func testLoadIgnoresStackFromAnotherSession() throws {
+        // Window IDs are reused after a reboot or re-login, so a stack from
+        // another session would point at unrelated windows.
+        try RuntimePaths.ensureDirectory()
+
+        let stack = YoinkStack(session: "old-session")
+        stack.push(windowId: 1, originWorkspace: "2", destinationWorkspace: "1")
+        stack.save()
+        defer { unlink(RuntimePaths.stackFile) }
+
+        let sameSession = YoinkStack(session: "old-session")
+        sameSession.load()
+        XCTAssertEqual(sameSession.entries.count, 1)
+
+        let newSession = YoinkStack(session: "new-session")
+        newSession.load()
+        XCTAssertTrue(newSession.isEmpty)
+    }
+
+    func testSavingEmptyStackRemovesFile() throws {
         try RuntimePaths.ensureDirectory()
 
         let stack = YoinkStack()
         stack.push(windowId: 1, originWorkspace: "2", destinationWorkspace: "1")
-        stack.save(pid: getpid() + 1)
-        defer { unlink(RuntimePaths.pidFile) }
+        stack.save()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RuntimePaths.stackFile))
 
-        let loaded = YoinkStack()
-        loaded.load()
-        XCTAssertEqual(loaded.entries.count, 1)
-        XCTAssertEqual(loaded.entries[0].windowId, 1)
+        _ = stack.pop()
+        stack.save()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RuntimePaths.stackFile))
     }
 
     func testLoadFromCorruptFileDoesNotRestore() throws {
         try RuntimePaths.ensureDirectory()
-        try "not-a-pid\n1|2|1".write(toFile: RuntimePaths.pidFile, atomically: true, encoding: .utf8)
-        defer { unlink(RuntimePaths.pidFile) }
+        try "not-a-session\n1|2|1".write(toFile: RuntimePaths.stackFile, atomically: true, encoding: .utf8)
+        defer { unlink(RuntimePaths.stackFile) }
 
         let stack = YoinkStack()
         stack.load()
@@ -108,7 +138,7 @@ final class YoinkStackTests: RuntimeDirTestCase {
     }
 
     func testLoadFromNonExistentFileIsNoOp() {
-        unlink(RuntimePaths.pidFile)
+        unlink(RuntimePaths.stackFile)
         let stack = YoinkStack()
         stack.load()
         XCTAssertTrue(stack.isEmpty)

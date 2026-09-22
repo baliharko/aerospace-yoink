@@ -16,9 +16,11 @@ public struct Config: Sendable {
     /// `load()` with the directories passed in, so tests can use a scratch home.
     static func load(home: String, xdgConfigHome: String?) -> Config {
         let xdgPath = "\(xdgConfigHome ?? "\(home)/.config")/yoink/yoink.toml"
+        var foundConfig = false
 
         for path in ["\(home)/.yoink.toml", xdgPath] {
             guard FileManager.default.fileExists(atPath: path) else { continue }
+            foundConfig = true
             do {
                 let content = try String(contentsOfFile: path, encoding: .utf8)
                 var config = Config()
@@ -29,8 +31,11 @@ public struct Config: Sendable {
             }
         }
 
-        // No config found — write defaults to XDG config path
-        writeDefault(to: xdgPath)
+        // Write defaults only when there's no config at all — never over one
+        // that exists but couldn't be read (bad encoding, permissions).
+        if !foundConfig {
+            writeDefault(to: xdgPath)
+        }
         return Config()
     }
 

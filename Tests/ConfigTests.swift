@@ -185,4 +185,20 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertEqual(Config.load(home: home, xdgConfigHome: nil).fadeOut, 0.3)
     }
+
+    func testLoadDoesNotOverwriteUnreadableConfig() throws {
+        let home = NSTemporaryDirectory() + "yoink-config-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let path = "\(home)/.config/yoink/yoink.toml"
+        try FileManager.default.createDirectory(atPath: "\(home)/.config/yoink",
+                                                withIntermediateDirectories: true)
+        // "# café" saved as Latin-1: not valid UTF-8, so reading it fails.
+        let original = Data("# caf".utf8) + Data([0xE9]) + Data("\nfade-out = 0.5\n".utf8)
+        try original.write(to: URL(fileURLWithPath: path))
+
+        let config = Config.load(home: home, xdgConfigHome: nil)
+        XCTAssertEqual(config.fadeOut, Config().fadeOut, "falls back to defaults")
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), original,
+                       "the user's file must be left alone")
+    }
 }

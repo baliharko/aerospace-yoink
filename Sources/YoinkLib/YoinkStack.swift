@@ -8,9 +8,24 @@ public struct YoinkEntry: Sendable {
 
 public class YoinkStack {
     public private(set) var entries: [YoinkEntry] = []
-    private var pidFilePath: String { RuntimePaths.pidFile }
+    private let session: String
+    private var path: String { RuntimePaths.stackFile }
 
-    public init() {}
+    /// Identifies the login session the stack's window IDs belong to. They come
+    /// from WindowServer and get reused after a reboot or re-login, where a
+    /// stale entry could point at an unrelated window.
+    public static let currentSession: String = {
+        var boottime = timeval()
+        var size = MemoryLayout<timeval>.size
+        sysctlbyname("kern.boottime", &boottime, &size, nil, 0)
+        var audit = auditinfo_addr()
+        getaudit_addr(&audit, Int32(MemoryLayout<auditinfo_addr>.size))
+        return "\(boottime.tv_sec)-\(audit.ai_asid)"
+    }()
+
+    public init(session: String = YoinkStack.currentSession) {
+        self.session = session
+    }
 
     public var isEmpty: Bool { entries.isEmpty }
 
@@ -40,27 +55,29 @@ public class YoinkStack {
         entries.removeAll { $0.windowId == windowId }
     }
 
-    /// Persist PID and stack to the pid file.
-    public func save(pid: pid_t) {
-        var lines = ["\(pid)"]
+    /// Persist the stack, tagged with its session. It lives in its own file
+    /// rather than the PID file so it survives clean daemon restarts.
+    public func save() {
+        guard !entries.isEmpty else {
+            unlink(path)
+            return
+        }
+        var lines = [session]
         for entry in entries {
             lines.append("\(entry.windowId)|\(entry.originWorkspace)|\(entry.destinationWorkspace)")
         }
         try? lines.joined(separator: "\n").write(
-            toFile: pidFilePath, atomically: true, encoding: .utf8
+            toFile: path, atomically: true, encoding: .utf8
         )
     }
 
-    /// Load stack entries left behind by a previous daemon. The stored PID is
-    /// only checked for well-formedness, not identity — the caller has already
-    /// established no daemon is running (its socket didn't answer), and stale
-    /// entries are pruned by the location poll once the daemon is up.
+    /// Load the stack a previous daemon left behind in this same session.
+    /// Entries whose windows have since closed or moved are pruned by the
+    /// location poll once the daemon is up.
     public func load() {
-        guard let content = try? String(contentsOfFile: pidFilePath, encoding: .utf8) else { return }
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return }
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard let firstLine = lines.first,
-              pid_t(firstLine.trimmingCharacters(in: .whitespacesAndNewlines)) != nil
-        else { return }
+        guard lines.first == session else { return }
 
         entries = lines.dropFirst().compactMap { line in
             let parts = line.split(separator: "|", maxSplits: 2).map(String.init)

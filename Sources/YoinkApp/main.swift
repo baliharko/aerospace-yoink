@@ -2,12 +2,37 @@ import AppKit
 import YoinkLib
 
 let args = CLIArgs(arguments: CommandLine.arguments)
+let forwardedArgs = Array(CommandLine.arguments.dropFirst())
 
 // If an existing daemon is running, forward args via socket and exit.
 // A successful socket connection is proof enough — no need to verify the PID
 // via /bin/ps (which costs ~67ms due to Process() overhead).
-if sendArgs(Array(CommandLine.arguments.dropFirst())) {
+if sendArgs(forwardedArgs) {
     exit(0)
+}
+
+do {
+    try RuntimePaths.ensureDirectory()
+} catch {
+    fputs("yoink: failed to create runtime directory: \(error.localizedDescription)\n", stderr)
+    exit(1)
+}
+
+// Only the lock holder may become the daemon. If another launch holds it,
+// hand our args to that one instead of racing it for the socket.
+do {
+    switch try DaemonLock.acquireOrForward(forwardedArgs) {
+    case .daemon:
+        break // the lock fd is deliberately never closed: held until exit
+    case .forwarded:
+        exit(0)
+    case .timedOut:
+        fputs("yoink: another launch holds the daemon lock but isn't accepting commands\n", stderr)
+        exit(1)
+    }
+} catch {
+    fputs("yoink: failed to take daemon lock: \(error.localizedDescription)\n", stderr)
+    exit(1)
 }
 
 // --yeet with no running daemon is a no-op
@@ -16,16 +41,9 @@ if args.isYeet {
     exit(1)
 }
 
-// Become the daemon — create runtime dir and write PID file
+// Become the daemon. Holding the lock means no other daemon is alive, so
+// restoring the previous daemon's stack and claiming the PID file are safe.
 let config = Config.load()
-do {
-    try RuntimePaths.ensureDirectory()
-} catch {
-    fputs("yoink: failed to create runtime directory: \(error.localizedDescription)\n", stderr)
-    exit(1)
-}
-// Restore any yoink stack a previous daemon left behind (safe: the socket
-// check above proved no daemon is alive), then claim the PID file.
 let stack = YoinkStack()
 stack.load()
 let currentPid = getpid()
@@ -36,15 +54,13 @@ do {
     fputs("yoink: failed to write PID file: \(error.localizedDescription)\n", stderr)
     exit(1)
 }
-if !stack.isEmpty {
-    stack.save(pid: currentPid) // re-persist restored entries under our PID
-}
 
-// Clean up PID file, socket, and runtime directory on exit
+// Clean up PID file and socket on exit. The lock is still held while atexit
+// handlers run, so both are guaranteed to be ours. The lock and stack files
+// stay.
 atexit {
     unlink(RuntimePaths.pidFile)
     unlink(RuntimePaths.socketPath)
-    rmdir(RuntimePaths.dir) // succeeds only if empty
 }
 
 // atexit doesn't run on signals — exit cleanly on SIGTERM/SIGINT (launchd
@@ -60,7 +76,7 @@ let signalSources: [DispatchSourceSignal] = [SIGTERM, SIGINT].map { sig in
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-let controller = YoinkController(config: config, stack: stack, pid: currentPid)
+let controller = YoinkController(config: config, stack: stack)
 
 // Listen for commands on Unix domain socket
 guard startSocketListener(handler: { rawArgs in
