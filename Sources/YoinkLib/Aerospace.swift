@@ -121,20 +121,6 @@ enum Aerospace {
     /// titles containing `|` or newlines intact, which a delimited format can't.
     static let windowListFormat = "%{window-id} %{app-pid} %{workspace} %{app-name} %{window-title}"
 
-    private struct WindowRecord: Decodable {
-        let windowId: Int
-        let appPid: pid_t
-        let workspace: String
-        let appName: String
-        let windowTitle: String
-
-        enum CodingKeys: String, CodingKey {
-            case workspace
-            case windowId = "window-id", appPid = "app-pid"
-            case appName = "app-name", windowTitle = "window-title"
-        }
-    }
-
     /// Parse `list-windows --all --json --format windowListFormat` output into
     /// AeroWindow models, excluding windows on `currentWorkspace`. Icons are
     /// matched by process ID, so apps that share a name can't swap icons.
@@ -189,5 +175,22 @@ enum Aerospace {
     static func listAllWindowLocations() -> [(windowId: Int, workspace: String)]? {
         run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
             .map(parseWindowLocations)
+    }
+}
+
+/// One window from `list-windows --all --json --format Aerospace.windowListFormat`.
+/// File-level rather than nested in `Aerospace`, so its CodingKeys stay within
+/// SwiftLint's one-level nesting limit.
+private struct WindowRecord: Decodable {
+    let windowId: Int
+    let appPid: pid_t
+    let workspace: String
+    let appName: String
+    let windowTitle: String
+
+    enum CodingKeys: String, CodingKey {
+        case workspace
+        case windowId = "window-id", appPid = "app-pid"
+        case appName = "app-name", windowTitle = "window-title"
     }
 }
