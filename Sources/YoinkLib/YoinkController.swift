@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
+public class YoinkController: NSObject, NSTextFieldDelegate {
     private let panel: YoinkPanel
     private let searchField: NSTextField
     private let tableView: NSTableView
@@ -18,7 +18,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private var workspace = ""
     private var allWindows: [AeroWindow] = []
-    private var filtered: [AeroWindow] = []
+    private(set) var filtered: [AeroWindow] = []
     private var keyMonitor: Any?
     private var resignObserver: Any?
 
@@ -31,11 +31,14 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private var pendingMoves = 0
     /// Bumped on every push, so a poll can tell a yoink started mid-flight.
     private var stackGeneration = 0
+    /// The fetch for a press whose panel hasn't appeared yet. Pressing again
+    /// clears it, which toggles the pending open off and drops its result.
+    private var pendingFetch: UUID?
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
     private var targetScreen: NSScreen? = NSScreen.main ?? NSScreen.screens.first
-    private var iconCache: [String: NSImage] = [:]
+    private var iconCache: [pid_t: NSImage] = [:]
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
 
@@ -154,10 +157,10 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     private func rebuildIconCache() {
         iconCache = Dictionary(
-            NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
-                guard let name = app.localizedName, let icon = app.icon else { return nil }
+            NSWorkspace.shared.runningApplications.compactMap { app -> (pid_t, NSImage)? in
+                guard let icon = app.icon else { return nil }
                 icon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
-                return (name, icon)
+                return (app.processIdentifier, icon)
             },
             uniquingKeysWith: { first, _ in first }
         )
@@ -165,12 +168,18 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
     // MARK: - Panel Lifecycle
 
-    /// Toggle panel — show if hidden, hide if visible
+    /// Toggle panel — show if hidden, hide if visible (or cancel if still loading)
     public func activate(focus: Bool = false) {
         if panel.isVisible {
             hide()
             return
         }
+        if pendingFetch != nil {
+            pendingFetch = nil
+            return
+        }
+        let fetch = UUID()
+        pendingFetch = fetch
         focusAfterYoink = focus
         searchField.stringValue = ""
         searchField.isHidden = true
@@ -185,29 +194,29 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             let (ws, wins, focusedId, screenIndex) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, pendingFetch == fetch else { return }
+                pendingFetch = nil
                 if ws.isEmpty {
                     // The focused-workspace query failed — aerospace itself is
                     // broken/absent, not just an empty window list.
                     fputs("yoink: could not query workspaces — is AeroSpace running?\n", stderr)
+                    NSSound.beep()
                     return
                 }
                 let screens = NSScreen.screens
                 let focusedScreen = screenIndex.flatMap { screens.indices.contains($0) ? screens[$0] : nil }
-                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else { return }
+                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else {
+                    NSSound.beep() // no windows on other workspaces to pick from
+                    return
+                }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws
                 targetScreen = screen
                 allWindows = wins
                 filtered = wins
-                tableView.reloadData()
-                if !filtered.isEmpty {
-                    tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-                }
-
                 recalculateMaxTableHeight()
-                resizePanelForRows()
+                reloadFiltered()
 
                 // Only save previousApp if there was a focused window — on an empty
                 // workspace, frontmostApplication points to another workspace's app
@@ -371,6 +380,14 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         }
     }
 
+    /// Move the selection by `step` rows, clamped to the list.
+    private func moveSelection(by step: Int) {
+        guard !filtered.isEmpty else { return }
+        let row = min(max(tableView.selectedRow + step, 0), filtered.count - 1)
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scrollToRow(row)
+    }
+
     private func scrollToRow(_ row: Int) {
         guard let clipView = tableView.enclosingScrollView?.contentView else { return }
         let rowRect = tableView.rect(ofRow: row)
@@ -404,6 +421,11 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scrollTopHidden.isActive = true
 
         filtered = allWindows
+        reloadFiltered()
+    }
+
+    /// Show `filtered` with its first row selected and scrolled to, and fit the panel.
+    private func reloadFiltered() {
         tableView.reloadData()
         if !filtered.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -425,18 +447,17 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         case KeyCode.returnKey, KeyCode.enter:
             yoinkSelected(); return nil
         case KeyCode.downArrow:
-            let next = min(tableView.selectedRow + 1, filtered.count - 1)
-            if next >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
-                scrollToRow(next)
-            }
-            return nil
+            moveSelection(by: 1); return nil
         case KeyCode.upArrow:
-            let prev = max(tableView.selectedRow - 1, 0)
-            tableView.selectRowIndexes(IndexSet(integer: prev), byExtendingSelection: false)
-            scrollToRow(prev)
-            return nil
+            moveSelection(by: -1); return nil
         default:
+            // Matched by character rather than key position, so the Ctrl
+            // bindings follow the keyboard layout.
+            if event.modifierFlags.contains(.control),
+               let step = KeyCode.controlNavigation[event.charactersIgnoringModifiers ?? ""] {
+                moveSelection(by: step)
+                return nil
+            }
             if searchField.isHidden,
                let chars = event.characters, KeyCode.opensSearch(chars),
                event.modifierFlags.isDisjoint(with: [.command, .control]) {
@@ -447,33 +468,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         }
     }
 
-    // MARK: - NSTableViewDataSource
-
-    public func numberOfRows(in tableView: NSTableView) -> Int { filtered.count }
-
-    // MARK: - NSTableViewDelegate
-
-    public func tableView(_ tv: NSTableView, viewFor col: NSTableColumn?, row: Int) -> NSView? {
-        let id = NSUserInterfaceItemIdentifier("cell")
-        let cell = tv.makeView(withIdentifier: id, owner: nil) as? WindowCell ?? {
-            let c = WindowCell(frame: .zero)
-            c.identifier = id
-            return c
-        }()
-        cell.configure(filtered[row])
-        return cell
-    }
-
-    public func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        let id = NSUserInterfaceItemIdentifier("row")
-        if let reused = tv.makeView(withIdentifier: id, owner: nil) as? WindowRowView {
-            return reused
-        }
-        let rowView = WindowRowView()
-        rowView.identifier = id
-        return rowView
-    }
-
     // MARK: - NSTextFieldDelegate
 
     public func controlTextDidChange(_ obj: Notification) {
@@ -482,13 +476,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             hideSearch()
             return
         }
-        let lowered = q.lowercased()
-        filtered = allWindows.filter { $0.matches(lowercasedQuery: lowered) }
-        tableView.reloadData()
-        if !filtered.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            scrollToRow(0)
-        }
-        resizePanelForRows()
+        let terms = AeroWindow.searchTerms(q)
+        filtered = allWindows.filter { $0.matches(terms: terms) }
+        reloadFiltered()
     }
 }

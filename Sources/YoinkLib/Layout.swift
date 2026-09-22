@@ -25,15 +25,18 @@ enum Layout {
 
     enum Text {
         static let leadingX: CGFloat = 72
-        static let trailingMargin: CGFloat = 128
         static let appLabelHeight: CGFloat = 20
         static let titleLabelHeight: CGFloat = 17
         static let labelGap: CGFloat = 2
     }
 
     enum Badge {
-        static let trailingOffset: CGFloat = 48
-        static let width: CGFloat = 32
+        static let trailingPad: CGFloat = 16
+        /// Between the app/title labels and the badge
+        static let gap: CGFloat = 8
+        static let minWidth: CGFloat = 32
+        /// Longer workspace names truncate
+        static let maxWidth: CGFloat = 160
         static let height: CGFloat = 20
     }
 
@@ -66,6 +69,9 @@ enum KeyCode {
     static let enter = 76
     static let downArrow = 125
     static let upArrow = 126
+
+    /// List navigation with Ctrl held, as in fzf: N/J move down, P/K move up.
+    static let controlNavigation: [String: Int] = ["n": 1, "j": 1, "p": -1, "k": -1]
 
     /// Whether a keystroke producing `characters` should open the filter field:
     /// printable text only. Arrow, function and navigation keys produce

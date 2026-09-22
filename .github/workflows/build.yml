@@ -1,8 +1,8 @@
 name: CI
 
 on:
+  # Every PR, including ones stacked on another PR's branch
   pull_request:
-    branches: [main]
 
 jobs:
   lint:
@@ -13,12 +13,12 @@ jobs:
       - run: swiftlint lint --strict
 
   build:
-    runs-on: macos-15
+    # The tests need macOS 26 at runtime (NSGlassEffectView)
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '^26'
       - run: swift build
-      # swift test requires macOS 26 at runtime (NSGlassEffectView);
-      # GitHub Actions does not yet offer a macOS 26 runner.
+      - run: swift test
