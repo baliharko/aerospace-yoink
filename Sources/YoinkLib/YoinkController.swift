@@ -38,7 +38,7 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
     private var targetScreen: NSScreen? = NSScreen.main ?? NSScreen.screens.first
-    private var iconCache: [String: NSImage] = [:]
+    private var iconCache: [pid_t: NSImage] = [:]
     private var defaultIcon: NSImage = NSWorkspace.shared.icon(for: .applicationBundle)
     private var appObserver: Any?
 
@@ -157,10 +157,10 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
 
     private func rebuildIconCache() {
         iconCache = Dictionary(
-            NSWorkspace.shared.runningApplications.compactMap { app -> (String, NSImage)? in
-                guard let name = app.localizedName, let icon = app.icon else { return nil }
+            NSWorkspace.shared.runningApplications.compactMap { app -> (pid_t, NSImage)? in
+                guard let icon = app.icon else { return nil }
                 icon.size = NSSize(width: Layout.Icon.size, height: Layout.Icon.size)
-                return (name, icon)
+                return (app.processIdentifier, icon)
             },
             uniquingKeysWith: { first, _ in first }
         )
