@@ -56,7 +56,7 @@ Note: re-signing is required after copying, otherwise macOS will kill the binary
 Create `~/.yoink.toml` (or `$XDG_CONFIG_HOME/yoink/yoink.toml`) to customize behavior:
 
 ```toml
-fade-in = 0.1          # Panel fade-in duration in seconds (default: 0.1)
+fade-in = 0            # Panel fade-in duration in seconds (default: 0)
 fade-out = 0.08        # Panel fade-out duration in seconds (default: 0.08)
 focus-after-yoink = true  # Focus the yoinked window (default: true)
 ```
