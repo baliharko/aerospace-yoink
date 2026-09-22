@@ -366,6 +366,14 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
         }
     }
 
+    /// Move the selection by `step` rows, clamped to the list.
+    private func moveSelection(by step: Int) {
+        guard !filtered.isEmpty else { return }
+        let row = min(max(tableView.selectedRow + step, 0), filtered.count - 1)
+        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scrollToRow(row)
+    }
+
     private func scrollToRow(_ row: Int) {
         guard let clipView = tableView.enclosingScrollView?.contentView else { return }
         let rowRect = tableView.rect(ofRow: row)
@@ -425,18 +433,17 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
         case KeyCode.returnKey, KeyCode.enter:
             yoinkSelected(); return nil
         case KeyCode.downArrow:
-            let next = min(tableView.selectedRow + 1, filtered.count - 1)
-            if next >= 0 {
-                tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
-                scrollToRow(next)
-            }
-            return nil
+            moveSelection(by: 1); return nil
         case KeyCode.upArrow:
-            let prev = max(tableView.selectedRow - 1, 0)
-            tableView.selectRowIndexes(IndexSet(integer: prev), byExtendingSelection: false)
-            scrollToRow(prev)
-            return nil
+            moveSelection(by: -1); return nil
         default:
+            // Matched by character rather than key position, so the Ctrl
+            // bindings follow the keyboard layout.
+            if event.modifierFlags.contains(.control),
+               let step = KeyCode.controlNavigation[event.charactersIgnoringModifiers ?? ""] {
+                moveSelection(by: step)
+                return nil
+            }
             if searchField.isHidden,
                let chars = event.characters, KeyCode.opensSearch(chars),
                event.modifierFlags.isDisjoint(with: [.command, .control]) {

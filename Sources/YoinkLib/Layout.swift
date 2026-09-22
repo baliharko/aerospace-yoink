@@ -67,6 +67,9 @@ enum KeyCode {
     static let downArrow = 125
     static let upArrow = 126
 
+    /// List navigation with Ctrl held, as in fzf: N/J move down, P/K move up.
+    static let controlNavigation: [String: Int] = ["n": 1, "j": 1, "p": -1, "k": -1]
+
     /// Whether a keystroke producing `characters` should open the filter field:
     /// printable text only. Arrow, function and navigation keys produce
     /// private-use characters (U+F700–U+F8FF); Tab and Backspace are controls.

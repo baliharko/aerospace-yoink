@@ -89,6 +89,7 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 | Key | Action |
 |---|---|
 | Arrow keys | Navigate the list |
+| Ctrl-N / Ctrl-P, Ctrl-J / Ctrl-K | Move down / up (as in fzf) |
 | Enter | Yoink the selected window |
 | Escape | Clear search, or dismiss if search is empty |
 | Any letter | Opens the filter field and starts filtering |
