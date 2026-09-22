@@ -182,7 +182,7 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         // GCD, not a detached Task: fetchWindows blocks its thread on
         // subprocesses, which would starve the Swift concurrency pool.
         DispatchQueue.global(qos: .userInitiated).async {
-            let (ws, wins, focusedId, screen) = Aerospace.fetchWindows(
+            let (ws, wins, focusedId, screenIndex) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -192,7 +192,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                     fputs("yoink: could not query workspaces — is AeroSpace running?\n", stderr)
                     return
                 }
-                guard !wins.isEmpty, let screen else { return }
+                let screens = NSScreen.screens
+                let focusedScreen = screenIndex.flatMap { screens.indices.contains($0) ? screens[$0] : nil }
+                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else { return }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws

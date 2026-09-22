@@ -58,29 +58,32 @@ enum Aerospace {
         FileManager.default.fileExists(atPath: bin)
     }
 
-    /// Fetch workspace + windows + focused window + focused monitor in parallel for speed.
-    /// Pass a pre-built icon cache to avoid rebuilding it on every activation.
+    /// Fetch the focused workspace (with its screen), windows, and focused window
+    /// in parallel for speed. Pass a pre-built icon cache to avoid rebuilding it
+    /// on every activation. The screen comes back as an index into
+    /// `NSScreen.screens` for the caller to resolve on the main thread.
     static func fetchWindows(
         iconCache: [String: NSImage],
         defaultIcon: NSImage
-    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screen: NSScreen?) {
-        let fallbackScreen = NSScreen.main ?? NSScreen.screens.first
+    ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screenIndex: Int?) {
         guard isInstalled else {
             fputs("yoink: aerospace binary not found at \(bin)\n", stderr)
-            return ("", [], nil, fallbackScreen)
+            return ("", [], nil, nil)
         }
         // nonisolated(unsafe) is safe here: each var is written exactly once
         // on a background thread, and group.wait() provides a happens-before
         // barrier before any reads on the calling thread.
-        nonisolated(unsafe) var workspace = ""
+        nonisolated(unsafe) var focusedWorkspace = ""
         nonisolated(unsafe) var rawOutput = ""
         nonisolated(unsafe) var focusedId: Int? = nil
-        nonisolated(unsafe) var monitorName = ""
         let group = DispatchGroup()
 
         group.enter()
         DispatchQueue.global().async {
-            workspace = run(["list-workspaces", "--focused"]) ?? ""
+            // The workspace and its screen in one call. The screen's AppKit index,
+            // unlike its name, is unique even across identical monitors.
+            focusedWorkspace = run(["list-workspaces", "--focused", "--format",
+                                    "%{monitor-appkit-nsscreen-screens-id}|%{workspace}"]) ?? ""
             group.leave()
         }
         group.enter()
@@ -94,20 +97,25 @@ enum Aerospace {
             focusedId = focusedWindowId()
             group.leave()
         }
-        group.enter()
-        DispatchQueue.global().async {
-            monitorName = run(["list-monitors", "--focused", "--format", "%{monitor-name}"]) ?? ""
-            group.leave()
-        }
         group.wait()
 
-        let screen = NSScreen.screens.first { $0.localizedName == monitorName } ?? fallbackScreen
+        let (workspace, screenIndex) = parseFocusedWorkspace(focusedWorkspace)
 
-        guard !rawOutput.isEmpty else { return (workspace, [], focusedId, screen) }
+        guard !rawOutput.isEmpty else { return (workspace, [], focusedId, screenIndex) }
 
         let windows = parseWindowList(rawOutput, excluding: workspace,
                                       iconCache: iconCache, defaultIcon: defaultIcon)
-        return (workspace, windows, focusedId, screen)
+        return (workspace, windows, focusedId, screenIndex)
+    }
+
+    /// Parse `list-workspaces --focused --format "%{monitor-appkit-nsscreen-screens-id}|%{workspace}"`.
+    /// AeroSpace's screen ID is 1-based; the returned index is 0-based. Returns an
+    /// empty workspace if the output is malformed (e.g. the query failed).
+    static func parseFocusedWorkspace(_ raw: String) -> (workspace: String, screenIndex: Int?) {
+        let parts = raw.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return ("", nil) }
+        let screenId = Int(parts[0].trimmingCharacters(in: .whitespaces))
+        return (parts[1].trimmingCharacters(in: .whitespaces), screenId.map { $0 - 1 })
     }
 
     /// Parse `list-windows --all --format "%{window-id}|%{workspace}|%{app-name}|%{window-title}"`

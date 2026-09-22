@@ -74,6 +74,24 @@ final class AerospaceParsingTests: XCTestCase {
         XCTAssertEqual(windows[0].icon, icon)
     }
 
+    // MARK: - parseFocusedWorkspace
+
+    func testParsesFocusedWorkspaceAndScreen() {
+        let (workspace, screenIndex) = Aerospace.parseFocusedWorkspace("2|web")
+        XCTAssertEqual(workspace, "web")
+        XCTAssertEqual(screenIndex, 1, "AeroSpace's 1-based screen ID maps to a 0-based NSScreen.screens index")
+    }
+
+    func testFocusedWorkspaceNameMayContainPipe() {
+        XCTAssertEqual(Aerospace.parseFocusedWorkspace("1|a|b").workspace, "a|b")
+    }
+
+    func testFailedFocusedWorkspaceQuery() {
+        let (workspace, screenIndex) = Aerospace.parseFocusedWorkspace("")
+        XCTAssertEqual(workspace, "", "empty workspace is how activate() detects AeroSpace being down")
+        XCTAssertNil(screenIndex)
+    }
+
     // MARK: - parseWindowLocations
 
     func testParsesValidLocations() {
