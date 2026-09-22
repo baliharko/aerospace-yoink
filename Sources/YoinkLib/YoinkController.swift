@@ -31,6 +31,9 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
     private var pendingMoves = 0
     /// Bumped on every push, so a poll can tell a yoink started mid-flight.
     private var stackGeneration = 0
+    /// The fetch for a press whose panel hasn't appeared yet. Pressing again
+    /// clears it, which toggles the pending open off and drops its result.
+    private var pendingFetch: UUID?
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
@@ -165,12 +168,18 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
 
     // MARK: - Panel Lifecycle
 
-    /// Toggle panel — show if hidden, hide if visible
+    /// Toggle panel — show if hidden, hide if visible (or cancel if still loading)
     public func activate(focus: Bool = false) {
         if panel.isVisible {
             hide()
             return
         }
+        if pendingFetch != nil {
+            pendingFetch = nil
+            return
+        }
+        let fetch = UUID()
+        pendingFetch = fetch
         focusAfterYoink = focus
         searchField.stringValue = ""
         searchField.isHidden = true
@@ -185,7 +194,8 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
             let (ws, wins, focusedId, screenIndex) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, pendingFetch == fetch else { return }
+                pendingFetch = nil
                 if ws.isEmpty {
                     // The focused-workspace query failed — aerospace itself is
                     // broken/absent, not just an empty window list.
