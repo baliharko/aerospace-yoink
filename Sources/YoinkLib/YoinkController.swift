@@ -200,11 +200,15 @@ public class YoinkController: NSObject, NSTextFieldDelegate {
                     // The focused-workspace query failed — aerospace itself is
                     // broken/absent, not just an empty window list.
                     fputs("yoink: could not query workspaces — is AeroSpace running?\n", stderr)
+                    NSSound.beep()
                     return
                 }
                 let screens = NSScreen.screens
                 let focusedScreen = screenIndex.flatMap { screens.indices.contains($0) ? screens[$0] : nil }
-                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else { return }
+                guard !wins.isEmpty, let screen = focusedScreen ?? NSScreen.main ?? screens.first else {
+                    NSSound.beep() // no windows on other workspaces to pick from
+                    return
+                }
 
                 previouslyFocusedWindowId = focusedId
                 workspace = ws
