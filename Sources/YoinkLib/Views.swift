@@ -117,6 +117,7 @@ class WindowCell: NSTableCellView {
         badgeLabel.font = .systemFont(ofSize: Layout.Font.badge, weight: .regular)
         badgeLabel.textColor = .tertiaryLabelColor
         badgeLabel.alignment = .right
+        badgeLabel.lineBreakMode = .byTruncatingTail
         badgeLabel.isBordered = false
         badgeLabel.drawsBackground = false
 
@@ -144,24 +145,31 @@ class WindowCell: NSTableCellView {
             height: Layout.Icon.size
         )
 
+        // The badge hugs the trailing edge and widens for long workspace
+        // names; the app and title labels get the space left of it. cellSize,
+        // unlike intrinsicContentSize, includes the label's own padding.
+        let fitted = ceil(badgeLabel.cell?.cellSize.width ?? 0)
+        let badgeWidth = min(max(fitted, Layout.Badge.minWidth), Layout.Badge.maxWidth)
+        badgeLabel.frame = NSRect(
+            x: bounds.width - Layout.Badge.trailingPad - badgeWidth,
+            y: (h - Layout.Badge.height) / 2,
+            width: badgeWidth,
+            height: Layout.Badge.height
+        )
+        let textWidth = badgeLabel.frame.minX - Layout.Badge.gap - Layout.Text.leadingX
+
         let textBlock = Layout.Text.appLabelHeight + Layout.Text.labelGap + Layout.Text.titleLabelHeight
         let base = (h - textBlock) / 2
         titleLabel.frame = NSRect(
             x: Layout.Text.leadingX, y: base,
-            width: bounds.width - Layout.Text.trailingMargin,
+            width: textWidth,
             height: Layout.Text.titleLabelHeight
         )
         appLabel.frame = NSRect(
             x: Layout.Text.leadingX,
             y: base + Layout.Text.titleLabelHeight + Layout.Text.labelGap,
-            width: bounds.width - Layout.Text.trailingMargin,
+            width: textWidth,
             height: Layout.Text.appLabelHeight
-        )
-        badgeLabel.frame = NSRect(
-            x: bounds.width - Layout.Badge.trailingOffset,
-            y: (h - Layout.Badge.height) / 2,
-            width: Layout.Badge.width,
-            height: Layout.Badge.height
         )
     }
 
@@ -170,6 +178,7 @@ class WindowCell: NSTableCellView {
         badgeLabel.stringValue = w.workspace
         appLabel.stringValue = w.appName
         titleLabel.stringValue = w.title
+        needsLayout = true // the badge width depends on the workspace name
     }
 }
 

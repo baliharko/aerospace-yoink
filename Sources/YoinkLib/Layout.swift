@@ -25,15 +25,18 @@ enum Layout {
 
     enum Text {
         static let leadingX: CGFloat = 72
-        static let trailingMargin: CGFloat = 128
         static let appLabelHeight: CGFloat = 20
         static let titleLabelHeight: CGFloat = 17
         static let labelGap: CGFloat = 2
     }
 
     enum Badge {
-        static let trailingOffset: CGFloat = 48
-        static let width: CGFloat = 32
+        static let trailingPad: CGFloat = 16
+        /// Between the app/title labels and the badge
+        static let gap: CGFloat = 8
+        static let minWidth: CGFloat = 32
+        /// Longer workspace names truncate
+        static let maxWidth: CGFloat = 160
         static let height: CGFloat = 20
     }
 
