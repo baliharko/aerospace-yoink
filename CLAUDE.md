@@ -25,7 +25,7 @@ Run tests with `swift test`. Lint with `swiftlint lint` (config in `.swiftlint.y
 
 ## Architecture
 
-**Daemon IPC pattern:** `main.swift` writes PID to a user-scoped runtime directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`). First launch with `--daemon` starts the resident process. Subsequent launches detect the PID file and forward CLI args over a Unix domain socket.
+**Daemon IPC pattern:** Runtime files live in a user-scoped directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`). Every launch first tries to forward its CLI args over the daemon's Unix domain socket there. If nothing answers, it takes an exclusive `flock` on `yoink.lock` (`DaemonLock`) and becomes the daemon. A launch that loses the lock race forwards to the winner once its socket is up. The yoink stack is persisted to `yoink.stack`, tagged with the login session. Tests point `RuntimePaths.dir` at a scratch directory (`RuntimeDirTestCase`) so they never touch a running daemon.
 
 **Data flow:** `main.swift` → `YoinkController` (manages panel lifecycle, keyboard input, search filtering) → `Aerospace` (shells out to `aerospace` CLI to list workspaces/windows, move windows) → `AeroWindow` (data model).
 

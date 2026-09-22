@@ -73,6 +73,8 @@ Add these lines to your AeroSpace config (`~/.config/aerospace/aerospace.toml`):
 after-startup-command = ['exec-and-forget /path/to/yoink --daemon']
 ```
 
+Not needed if you used `install.sh`, whose LaunchAgent already starts the daemon. Having both is harmless: whichever starts second exits.
+
 #### Bind a hotkey to trigger the picker
 
 ```toml
@@ -102,10 +104,12 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 ### How it works
 
 1. **First invocation with `--daemon`**: Starts a background process that stays resident and listens on a Unix domain socket. No UI is shown.
-2. **Subsequent invocations** (without `--daemon`): Detects the running daemon via a PID file, forwards CLI args over the socket, and exits immediately. The daemon receives the args and acts on them (e.g. shows the picker).
+2. **Subsequent invocations** (without `--daemon`): Connect to the daemon's socket, forward their CLI args, and exit immediately. The daemon receives the args and acts on them (e.g. shows the picker).
 3. **Without a daemon**: If no daemon is running, the binary becomes the daemon and shows the panel immediately.
 
-Runtime files (PID file, socket) are stored in a user-scoped directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`) with `0700` permissions.
+If several launches start at once (e.g. the LaunchAgent and AeroSpace's `after-startup-command` at login), a lock file ensures only one becomes the daemon. The others forward their args to it.
+
+Runtime files (lock, PID file, socket, yoink stack) are stored in a user-scoped directory (`$XDG_RUNTIME_DIR/yoink/` or `$TMPDIR/yoink-$UID/`) with `0700` permissions.
 
 This means the hotkey response is near-instant — there's no process startup overhead on each press.
 

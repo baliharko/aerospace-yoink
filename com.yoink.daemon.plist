@@ -12,7 +12,12 @@
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+        <!-- Restart after crashes only. A launch that finds a daemon already
+             running exits 0; restarting it would loop forever. -->
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
     <key>StandardOutPath</key>
     <string>/tmp/yoink.log</string>
     <key>StandardErrorPath</key>
