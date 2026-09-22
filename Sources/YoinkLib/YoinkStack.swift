@@ -1,6 +1,6 @@
 import Foundation
 
-public struct YoinkEntry {
+public struct YoinkEntry: Sendable {
     public let windowId: Int
     public let originWorkspace: String
     public var destinationWorkspace: String

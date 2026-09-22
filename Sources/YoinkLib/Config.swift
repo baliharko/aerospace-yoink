@@ -9,18 +9,15 @@ public struct Config: Sendable {
     /// 1. `~/.yoink.toml`
     /// 2. `$XDG_CONFIG_HOME/yoink/yoink.toml` (defaults to `~/.config/yoink/yoink.toml`)
     public static func load() -> Config {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        load(home: FileManager.default.homeDirectoryForCurrentUser.path,
+             xdgConfigHome: ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"])
+    }
 
-        let candidates: [String] = [
-            "\(home)/.yoink.toml",
-            {
-                let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
-                    ?? "\(home)/.config"
-                return "\(xdg)/yoink/yoink.toml"
-            }(),
-        ]
+    /// `load()` with the directories passed in, so tests can use a scratch home.
+    static func load(home: String, xdgConfigHome: String?) -> Config {
+        let xdgPath = "\(xdgConfigHome ?? "\(home)/.config")/yoink/yoink.toml"
 
-        for path in candidates {
+        for path in ["\(home)/.yoink.toml", xdgPath] {
             guard FileManager.default.fileExists(atPath: path) else { continue }
             do {
                 let content = try String(contentsOfFile: path, encoding: .utf8)
@@ -33,7 +30,7 @@ public struct Config: Sendable {
         }
 
         // No config found — write defaults to XDG config path
-        writeDefault()
+        writeDefault(to: xdgPath)
         return Config()
     }
 
@@ -53,14 +50,10 @@ public struct Config: Sendable {
 
         """
 
-    /// Writes the default config file. Returns the path written, or nil on failure.
+    /// Writes the default config file to `path`. Returns the path written, or nil on failure.
     @discardableResult
-    public static func writeDefault() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]
-            ?? "\(home)/.config"
-        let dir = "\(xdg)/yoink"
-        let path = "\(dir)/yoink.toml"
+    public static func writeDefault(to path: String) -> String? {
+        let dir = (path as NSString).deletingLastPathComponent
 
         do {
             try FileManager.default.createDirectory(

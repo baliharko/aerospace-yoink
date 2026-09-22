@@ -162,8 +162,27 @@ final class ConfigTests: XCTestCase {
     // MARK: - File resolution
 
     func testLoadReturnsDefaultsWhenNoFile() {
-        let config = Config.load()
-        XCTAssertGreaterThanOrEqual(config.fadeIn, 0)
-        XCTAssertGreaterThanOrEqual(config.fadeOut, 0)
+        // Scratch home — the real one belongs to the developer's config.
+        let home = NSTemporaryDirectory() + "yoink-config-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: home) }
+
+        let config = Config.load(home: home, xdgConfigHome: nil)
+        XCTAssertEqual(config.fadeIn, Config().fadeIn)
+        XCTAssertEqual(config.fadeOut, Config().fadeOut)
+        XCTAssertEqual(config.focusAfterYoink, Config().focusAfterYoink)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: "\(home)/.config/yoink/yoink.toml"),
+                      "defaults should be written to the XDG path")
+    }
+
+    func testLoadPrefersHomeDotfile() throws {
+        let home = NSTemporaryDirectory() + "yoink-config-test-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        try FileManager.default.createDirectory(atPath: "\(home)/.config/yoink",
+                                                withIntermediateDirectories: true)
+        try "fade-out = 0.3".write(toFile: "\(home)/.yoink.toml", atomically: true, encoding: .utf8)
+        try "fade-out = 0.5".write(toFile: "\(home)/.config/yoink/yoink.toml",
+                                   atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(Config.load(home: home, xdgConfigHome: nil).fadeOut, 0.3)
     }
 }

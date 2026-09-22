@@ -1,7 +1,7 @@
 import XCTest
 @testable import YoinkLib
 
-final class DaemonStartupTests: XCTestCase {
+final class DaemonStartupTests: RuntimeDirTestCase {
 
     // MARK: - Runtime directory
 

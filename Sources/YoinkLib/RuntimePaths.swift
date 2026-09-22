@@ -4,7 +4,9 @@ import Foundation
 /// Uses $XDG_RUNTIME_DIR if set, otherwise falls back to $TMPDIR/yoink-$UID/.
 /// The directory is created with 0700 permissions on first access.
 public enum RuntimePaths {
-    public static let dir: String = {
+    /// Settable so tests can point it at a scratch directory — the default is
+    /// shared with any daemon the developer has running.
+    nonisolated(unsafe) public internal(set) static var dir: String = {
         let base: String
         if let xdg = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"] {
             base = "\(xdg)/yoink"
@@ -15,8 +17,8 @@ public enum RuntimePaths {
         return base
     }()
 
-    public static let pidFile = "\(dir)/yoink.pid"
-    public static let socketPath = "\(dir)/yoink.sock"
+    public static var pidFile: String { "\(dir)/yoink.pid" }
+    public static var socketPath: String { "\(dir)/yoink.sock" }
 
     /// Creates the runtime directory with user-only permissions (0700).
     /// Throws if the directory cannot be created or secured.
