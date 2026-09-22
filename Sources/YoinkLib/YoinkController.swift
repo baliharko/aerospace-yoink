@@ -201,13 +201,8 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
                 targetScreen = screen
                 allWindows = wins
                 filtered = wins
-                tableView.reloadData()
-                if !filtered.isEmpty {
-                    tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-                }
-
                 recalculateMaxTableHeight()
-                resizePanelForRows()
+                reloadFiltered()
 
                 // Only save previousApp if there was a focused window — on an empty
                 // workspace, frontmostApplication points to another workspace's app
@@ -404,6 +399,11 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         scrollTopHidden.isActive = true
 
         filtered = allWindows
+        reloadFiltered()
+    }
+
+    /// Show `filtered` with its first row selected and scrolled to, and fit the panel.
+    private func reloadFiltered() {
         tableView.reloadData()
         if !filtered.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -484,11 +484,6 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
         }
         let lowered = q.lowercased()
         filtered = allWindows.filter { $0.matches(lowercasedQuery: lowered) }
-        tableView.reloadData()
-        if !filtered.isEmpty {
-            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            scrollToRow(0)
-        }
-        resizePanelForRows()
+        reloadFiltered()
     }
 }
