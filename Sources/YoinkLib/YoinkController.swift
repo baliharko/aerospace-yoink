@@ -26,6 +26,12 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private let stack: YoinkStack
     private let pid: pid_t
     private var pollTimer: DispatchSourceTimer?
+    private var isPolling = false
+    /// Yoinks whose move hasn't landed yet — a location snapshot taken
+    /// meanwhile would misread them as manually moved away.
+    private var pendingMoves = 0
+    /// Bumped on every push, so a poll can tell a yoink started mid-flight.
+    private var stackGeneration = 0
     private var focusAfterYoink = false
     private var previouslyFocusedWindowId: Int?
     private var previousApp: NSRunningApplication?
@@ -133,7 +139,9 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
             forName: NSApplication.didResignActiveNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.hide() }
+            // Something else took focus (click, Cmd-Tab, workspace switch) —
+            // restoring the previous app here would yank focus back from it.
+            MainActor.assumeIsolated { self?.hide(restoreFocus: false) }
         }
 
         rebuildIconCache()
@@ -173,10 +181,12 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
 
         let icons = iconCache
         let fallback = defaultIcon
-        Task.detached { [weak self] in
+        // GCD, not a detached Task: fetchWindows blocks its thread on
+        // subprocesses, which would starve the Swift concurrency pool.
+        DispatchQueue.global(qos: .userInitiated).async {
             let (ws, wins, focusedId, screen) = Aerospace.fetchWindows(
                 iconCache: icons, defaultIcon: fallback)
-            await MainActor.run { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if ws.isEmpty {
                     // The focused-workspace query failed — aerospace itself is
@@ -276,16 +286,20 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     private func yoinkSelected() {
         guard tableView.selectedRow >= 0, tableView.selectedRow < filtered.count else { return }
         let win = filtered[tableView.selectedRow]
+        let windowId = win.id
         let restoreId = previouslyFocusedWindowId
         let focus = focusAfterYoink
         let ws = workspace
-        stack.push(windowId: win.id, originWorkspace: win.workspace, destinationWorkspace: ws)
+        stack.push(windowId: windowId, originWorkspace: win.workspace, destinationWorkspace: ws)
         stack.save(pid: pid)
+        stackGeneration += 1
+        pendingMoves += 1
         startPollTimerIfNeeded()
         hide(restoreFocus: !focus) {
             // Run aerospace commands off the main thread (they shell out synchronously)
-            DispatchQueue.global().async {
-                Aerospace.yoink(win.id, to: ws, focus: focus)
+            DispatchQueue.global(qos: .userInitiated).async {
+                Aerospace.yoink(windowId, to: ws, focus: focus)
+                Task { @MainActor [weak self] in self?.pendingMoves -= 1 }
                 if !focus, let restoreId {
                     Aerospace.run(["focus", "--window-id", "\(restoreId)"])
                 }
@@ -296,9 +310,13 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// Pop the most recently yoinked window and send it back to its origin.
     public func yeet() {
         guard let entry = stack.pop() else { return }
-        Aerospace.yoink(entry.windowId, to: entry.originWorkspace, focus: false)
         stack.save(pid: pid)
         stopPollTimerIfEmpty()
+        // Off the main thread, like yoinks: a wedged AeroSpace would otherwise
+        // freeze the daemon while its socket keeps accepting commands.
+        DispatchQueue.global(qos: .userInitiated).async {
+            Aerospace.yoink(entry.windowId, to: entry.originWorkspace, focus: false)
+        }
     }
 
     // MARK: - Stack Polling
@@ -321,12 +339,21 @@ public class YoinkController: NSObject, NSTableViewDataSource, NSTableViewDelega
     }
 
     private func pollWindowLocations() {
-        Task.detached {
-            let locations = Aerospace.listAllWindowLocations()
-            let locationMap = Dictionary(locations.map { ($0.windowId, $0.workspace) },
-                                         uniquingKeysWith: { first, _ in first })
-            await MainActor.run { [weak self] in
+        // One at a time, and never while a yoink is mid-move (see `pendingMoves`).
+        guard !isPolling, pendingMoves == 0 else { return }
+        isPolling = true
+        let generation = stackGeneration
+        DispatchQueue.global(qos: .utility).async {
+            let locationMap = Aerospace.listAllWindowLocations().map { locations in
+                Dictionary(locations.map { ($0.windowId, $0.workspace) },
+                           uniquingKeysWith: { first, _ in first })
+            }
+            Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.isPolling = false
+                // nil: AeroSpace unreachable, which says nothing about where windows
+                // are. Generation changed: a yoink began after the snapshot was requested.
+                guard let locationMap, generation == self.stackGeneration else { return }
                 var changed = false
                 for entry in self.stack.entries {
                     let actual = locationMap[entry.windowId]

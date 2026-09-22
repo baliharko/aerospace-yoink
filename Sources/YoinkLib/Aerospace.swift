@@ -9,10 +9,20 @@ enum Aerospace {
         return "/opt/homebrew/bin/aerospace"
     }()
 
+    /// Upper bound on one CLI call. Calls normally take ~15ms; this only trips
+    /// when the AeroSpace server is wedged, so a hung call can't pin its
+    /// thread — and whatever is waiting on it — forever.
+    static let timeout: TimeInterval = 2
+
+    /// Runs `aerospace` and returns its trimmed stdout, or nil if it couldn't
+    /// be launched, exited non-zero, or timed out. Callers that act on the
+    /// absence of output must treat nil (AeroSpace unreachable) differently
+    /// from "" (a valid empty result). Blocks the calling thread.
     @discardableResult
-    static func run(_ args: [String]) -> String {
+    static func run(_ args: [String]) -> String? {
         let proc = Process()
         let pipe = Pipe()
+        let cmd = args.first ?? ""
         proc.executableURL = URL(fileURLWithPath: bin)
         proc.arguments = args
         proc.standardOutput = pipe
@@ -21,14 +31,23 @@ enum Aerospace {
             try proc.run()
         } catch {
             fputs("yoink: failed to run aerospace: \(error.localizedDescription)\n", stderr)
-            return ""
+            return nil
         }
+        let watchdog = DispatchWorkItem {
+            guard proc.isRunning else { return }
+            fputs("yoink: aerospace \(cmd) timed out after \(timeout)s\n", stderr)
+            proc.terminate()
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
         // Drain the pipe before waiting — waiting first deadlocks once the
         // child fills the pipe buffer (large list-windows output).
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
-        if proc.terminationStatus != 0 {
-            fputs("yoink: aerospace \(args.first ?? "") exited with status \(proc.terminationStatus)\n", stderr)
+        watchdog.cancel()
+        guard proc.terminationReason == .exit, proc.terminationStatus == 0 else {
+            let how = proc.terminationReason == .exit ? "exited with status" : "was killed by signal"
+            fputs("yoink: aerospace \(cmd) \(how) \(proc.terminationStatus)\n", stderr)
+            return nil
         }
         return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -61,13 +80,13 @@ enum Aerospace {
 
         group.enter()
         DispatchQueue.global().async {
-            workspace = run(["list-workspaces", "--focused"])
+            workspace = run(["list-workspaces", "--focused"]) ?? ""
             group.leave()
         }
         group.enter()
         DispatchQueue.global().async {
             rawOutput = run(["list-windows", "--all", "--format",
-                       "%{window-id}|%{workspace}|%{app-name}|%{window-title}"])
+                       "%{window-id}|%{workspace}|%{app-name}|%{window-title}"]) ?? ""
             group.leave()
         }
         group.enter()
@@ -77,7 +96,7 @@ enum Aerospace {
         }
         group.enter()
         DispatchQueue.global().async {
-            monitorName = run(["list-monitors", "--focused", "--format", "%{monitor-name}"])
+            monitorName = run(["list-monitors", "--focused", "--format", "%{monitor-name}"]) ?? ""
             group.leave()
         }
         group.wait()
@@ -135,13 +154,13 @@ enum Aerospace {
 
     /// Returns the currently focused window ID, or nil if none.
     static func focusedWindowId() -> Int? {
-        let raw = run(["list-windows", "--focused", "--format", "%{window-id}"])
-        return Int(raw.trimmingCharacters(in: .whitespaces))
+        run(["list-windows", "--focused", "--format", "%{window-id}"]).flatMap { Int($0) }
     }
 
-    /// Lightweight query returning window IDs and their current workspaces.
-    static func listAllWindowLocations() -> [(windowId: Int, workspace: String)] {
-        let raw = run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
-        return parseWindowLocations(raw)
+    /// Lightweight query returning window IDs and their current workspaces,
+    /// or nil if AeroSpace couldn't be queried.
+    static func listAllWindowLocations() -> [(windowId: Int, workspace: String)]? {
+        run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
+            .map(parseWindowLocations)
     }
 }

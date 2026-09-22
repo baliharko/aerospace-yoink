@@ -1,7 +1,7 @@
 import XCTest
 @testable import YoinkLib
 
-final class YoinkStackTests: XCTestCase {
+final class YoinkStackTests: RuntimeDirTestCase {
 
     func testNewStackIsEmpty() {
         let stack = YoinkStack()

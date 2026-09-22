@@ -1,7 +1,7 @@
 import XCTest
 @testable import YoinkLib
 
-final class IPCTests: XCTestCase {
+final class IPCTests: RuntimeDirTestCase {
 
     // MARK: - Round-trip tests
 
