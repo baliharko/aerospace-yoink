@@ -23,12 +23,20 @@ struct AeroWindow {
         self.workspaceLower = workspace.lowercased()
     }
 
-    /// `q` must already be lowercased — callers lowercase once per search,
-    /// not once per window.
-    func matches(lowercasedQuery q: String) -> Bool {
-        if q.isEmpty { return true }
-        return appNameLower.contains(q)
-            || titleLower.contains(q)
-            || workspaceLower.contains(q)
+    /// Splits a filter query into lowercased terms — once per search, not
+    /// once per window.
+    static func searchTerms(_ query: String) -> [String] {
+        query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+
+    /// Every term must appear in the app name, title, or workspace, in any
+    /// order, so "chrome github" finds a Chrome window whose title mentions
+    /// GitHub. Terms come from `searchTerms(_:)`; none matches everything.
+    func matches(terms: [String]) -> Bool {
+        terms.allSatisfy { term in
+            appNameLower.contains(term)
+                || titleLower.contains(term)
+                || workspaceLower.contains(term)
+        }
     }
 }

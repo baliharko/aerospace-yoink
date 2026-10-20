@@ -11,7 +11,7 @@ Native macOS window picker for [AeroSpace](https://github.com/nikitabobko/AeroSp
 Press a keybinding and a floating Liquid Glass panel appears, listing every window from your other AeroSpace workspaces. Select one and it gets moved or "**yoinked**" into your focused workspace.
 
 - Runs as a background daemon — instant response on hotkey press
-- Type-to-filter search that dynamically resizes the panel
+- Type-to-filter search that dynamically resizes the panel. Every word must match the app, title, or workspace, in any order (`chrome github`)
 - Keyboard-driven: arrow keys to navigate, Enter to yoink, Escape to dismiss
 - Shows app icons, names, window titles, and workspace badges
 - Adapts to screen size and works across multiple monitors
@@ -56,7 +56,7 @@ Note: re-signing is required after copying, otherwise macOS will kill the binary
 Create `~/.yoink.toml` (or `$XDG_CONFIG_HOME/yoink/yoink.toml`) to customize behavior:
 
 ```toml
-fade-in = 0.1          # Panel fade-in duration in seconds (default: 0.1)
+fade-in = 0            # Panel fade-in duration in seconds (default: 0)
 fade-out = 0.08        # Panel fade-out duration in seconds (default: 0.08)
 focus-after-yoink = true  # Focus the yoinked window (default: true)
 ```
@@ -89,6 +89,7 @@ Replace `/path/to/yoink` with the actual path to the binary (e.g., `/usr/local/b
 | Key | Action |
 |---|---|
 | Arrow keys | Navigate the list |
+| Ctrl-N / Ctrl-P, Ctrl-J / Ctrl-K | Move down / up (as in fzf) |
 | Enter | Yoink the selected window |
 | Escape | Clear search, or dismiss if search is empty |
 | Any letter | Opens the filter field and starts filtering |

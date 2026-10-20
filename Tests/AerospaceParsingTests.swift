@@ -8,8 +8,10 @@ final class AerospaceParsingTests: XCTestCase {
 
     func testParsesValidWindowList() {
         let raw = """
-            42|2|Safari|Apple - Start
-            99|3|Terminal|~/projects
+            [
+              {"window-id": 42, "app-pid": 100, "workspace": "2", "app-name": "Safari", "window-title": "Apple - Start"},
+              {"window-id": 99, "app-pid": 200, "workspace": "3", "app-name": "Terminal", "window-title": "~/projects"}
+            ]
             """
         let windows = Aerospace.parseWindowList(raw, excluding: "1")
         XCTAssertEqual(windows.count, 2)
@@ -23,8 +25,10 @@ final class AerospaceParsingTests: XCTestCase {
 
     func testExcludesCurrentWorkspace() {
         let raw = """
-            42|1|Safari|Page
-            99|2|Terminal|Shell
+            [
+              {"window-id": 42, "app-pid": 100, "workspace": "1", "app-name": "Safari", "window-title": "Page"},
+              {"window-id": 99, "app-pid": 200, "workspace": "2", "app-name": "Terminal", "window-title": "Shell"}
+            ]
             """
         let windows = Aerospace.parseWindowList(raw, excluding: "1")
         XCTAssertEqual(windows.count, 1)
@@ -33,45 +37,43 @@ final class AerospaceParsingTests: XCTestCase {
 
     func testEmptyInputReturnsEmpty() {
         XCTAssertTrue(Aerospace.parseWindowList("", excluding: "1").isEmpty)
+        XCTAssertTrue(Aerospace.parseWindowList("[]", excluding: "1").isEmpty)
     }
 
-    func testMalformedLineSkipped() {
-        let raw = """
-            42|2|Safari|Page
-            not-a-valid-line
-            99|3|Terminal|Shell
-            """
-        let windows = Aerospace.parseWindowList(raw, excluding: "1")
-        XCTAssertEqual(windows.count, 2)
+    func testMalformedInputReturnsEmpty() {
+        XCTAssertTrue(Aerospace.parseWindowList("not json", excluding: "1").isEmpty)
+        let wrongType = #"[{"window-id": "abc", "app-pid": 1, "workspace": "2", "app-name": "A", "window-title": "B"}]"#
+        XCTAssertTrue(Aerospace.parseWindowList(wrongType, excluding: "1").isEmpty)
     }
 
-    func testNonNumericIdSkipped() {
-        let raw = "abc|2|Safari|Page"
-        XCTAssertTrue(Aerospace.parseWindowList(raw, excluding: "1").isEmpty)
-    }
-
-    func testTitleContainingPipes() {
-        // maxSplits: 3 means the title can contain pipe characters
-        let raw = "42|2|Safari|Page | Tab | Extra"
+    func testTitleWithPipesAndNewlinesSurvives() {
+        // Both broke the old "|"-delimited, line-based format.
+        let raw = #"[{"window-id": 42, "app-pid": 1, "workspace": "2", "app-name": "Safari", "window-title": "Page | Tab\nLine 2"}]"#
         let windows = Aerospace.parseWindowList(raw, excluding: "1")
         XCTAssertEqual(windows.count, 1)
-        XCTAssertEqual(windows[0].title, "Page | Tab | Extra")
+        XCTAssertEqual(windows[0].title, "Page | Tab\nLine 2")
     }
 
-    func testWhitespaceTrimmed() {
-        let raw = "  42  |  Dev  |  Safari  |  Some Title  "
-        let windows = Aerospace.parseWindowList(raw, excluding: "1")
-        XCTAssertEqual(windows[0].id, 42)
-        XCTAssertEqual(windows[0].workspace, "Dev")
-        XCTAssertEqual(windows[0].appName, "Safari")
-        XCTAssertEqual(windows[0].title, "Some Title")
+    func testIconsAreMatchedByPid() {
+        // Two apps with the same display name must keep their own icons.
+        let first = NSImage(size: NSSize(width: 16, height: 16))
+        let second = NSImage(size: NSSize(width: 16, height: 16))
+        let raw = """
+            [
+              {"window-id": 1, "app-pid": 10, "workspace": "2", "app-name": "Code", "window-title": "a"},
+              {"window-id": 2, "app-pid": 20, "workspace": "2", "app-name": "Code", "window-title": "b"}
+            ]
+            """
+        let windows = Aerospace.parseWindowList(raw, excluding: "1", iconCache: [10: first, 20: second])
+        XCTAssertTrue(windows[0].icon === first)
+        XCTAssertTrue(windows[1].icon === second)
     }
 
-    func testUsesIconCacheWhenAvailable() {
-        let icon = NSImage(size: NSSize(width: 16, height: 16))
-        let raw = "42|2|Safari|Page"
-        let windows = Aerospace.parseWindowList(raw, excluding: "1", iconCache: ["Safari": icon])
-        XCTAssertEqual(windows[0].icon, icon)
+    func testUnknownPidFallsBackToDefaultIcon() {
+        let fallback = NSImage(size: NSSize(width: 16, height: 16))
+        let raw = #"[{"window-id": 42, "app-pid": 999, "workspace": "2", "app-name": "Safari", "window-title": "Page"}]"#
+        let windows = Aerospace.parseWindowList(raw, excluding: "1", iconCache: [:], defaultIcon: fallback)
+        XCTAssertTrue(windows[0].icon === fallback)
     }
 
     // MARK: - parseFocusedWorkspace

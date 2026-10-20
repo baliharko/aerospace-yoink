@@ -27,4 +27,12 @@ final class KeyInputTests: XCTestCase {
             XCTAssertFalse(KeyCode.opensSearch(chars), "\(name) should not open the filter")
         }
     }
+
+    func testControlNavigationBindings() {
+        XCTAssertEqual(KeyCode.controlNavigation["n"], 1)
+        XCTAssertEqual(KeyCode.controlNavigation["j"], 1)
+        XCTAssertEqual(KeyCode.controlNavigation["p"], -1)
+        XCTAssertEqual(KeyCode.controlNavigation["k"], -1)
+        XCTAssertNil(KeyCode.controlNavigation["a"])
+    }
 }

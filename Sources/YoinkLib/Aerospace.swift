@@ -63,7 +63,7 @@ enum Aerospace {
     /// on every activation. The screen comes back as an index into
     /// `NSScreen.screens` for the caller to resolve on the main thread.
     static func fetchWindows(
-        iconCache: [String: NSImage],
+        iconCache: [pid_t: NSImage],
         defaultIcon: NSImage
     ) -> (workspace: String, windows: [AeroWindow], focusedId: Int?, screenIndex: Int?) {
         guard isInstalled else {
@@ -88,8 +88,7 @@ enum Aerospace {
         }
         group.enter()
         DispatchQueue.global().async {
-            rawOutput = run(["list-windows", "--all", "--format",
-                       "%{window-id}|%{workspace}|%{app-name}|%{window-title}"]) ?? ""
+            rawOutput = run(["list-windows", "--all", "--json", "--format", windowListFormat]) ?? ""
             group.leave()
         }
         group.enter()
@@ -118,25 +117,31 @@ enum Aerospace {
         return (parts[1].trimmingCharacters(in: .whitespaces), screenId.map { $0 - 1 })
     }
 
-    /// Parse `list-windows --all --format "%{window-id}|%{workspace}|%{app-name}|%{window-title}"`
-    /// output into AeroWindow models. Excludes windows on `currentWorkspace`.
+    /// Fields requested from `list-windows --all --json`. JSON keeps window
+    /// titles containing `|` or newlines intact, which a delimited format can't.
+    static let windowListFormat = "%{window-id} %{app-pid} %{workspace} %{app-name} %{window-title}"
+
+    /// Parse `list-windows --all --json --format windowListFormat` output into
+    /// AeroWindow models, excluding windows on `currentWorkspace`. Icons are
+    /// matched by process ID, so apps that share a name can't swap icons.
     static func parseWindowList(
-        _ raw: String, excluding currentWorkspace: String,
-        iconCache: [String: NSImage] = [:], defaultIcon: NSImage = NSImage()
+        _ json: String, excluding currentWorkspace: String,
+        iconCache: [pid_t: NSImage] = [:], defaultIcon: NSImage = NSImage()
     ) -> [AeroWindow] {
-        raw.split(separator: "\n").compactMap { line in
-            let p = line.split(separator: "|", maxSplits: 3).map(String.init)
-            guard p.count == 4,
-                  let id = Int(p[0].trimmingCharacters(in: .whitespaces))
-            else { return nil }
-            let space = p[1].trimmingCharacters(in: .whitespaces)
-            if space == currentWorkspace { return nil }
-            let appName = p[2].trimmingCharacters(in: .whitespaces)
-            return AeroWindow(
-                id: id, workspace: space,
-                appName: appName,
-                title: p[3].trimmingCharacters(in: .whitespaces),
-                icon: iconCache[appName] ?? defaultIcon
+        guard !json.isEmpty else { return [] }
+        let records: [WindowRecord]
+        do {
+            records = try JSONDecoder().decode([WindowRecord].self, from: Data(json.utf8))
+        } catch {
+            fputs("yoink: couldn't parse aerospace window list: \(error)\n", stderr)
+            return []
+        }
+        return records.filter { $0.workspace != currentWorkspace }.map { record in
+            AeroWindow(
+                id: record.windowId, workspace: record.workspace,
+                appName: record.appName,
+                title: record.windowTitle,
+                icon: iconCache[record.appPid] ?? defaultIcon
             )
         }
     }
@@ -170,5 +175,22 @@ enum Aerospace {
     static func listAllWindowLocations() -> [(windowId: Int, workspace: String)]? {
         run(["list-windows", "--all", "--format", "%{window-id}|%{workspace}"])
             .map(parseWindowLocations)
+    }
+}
+
+/// One window from `list-windows --all --json --format Aerospace.windowListFormat`.
+/// File-level rather than nested in `Aerospace`, so its CodingKeys stay within
+/// SwiftLint's one-level nesting limit.
+private struct WindowRecord: Decodable {
+    let windowId: Int
+    let appPid: pid_t
+    let workspace: String
+    let appName: String
+    let windowTitle: String
+
+    enum CodingKeys: String, CodingKey {
+        case workspace
+        case windowId = "window-id", appPid = "app-pid"
+        case appName = "app-name", windowTitle = "window-title"
     }
 }
